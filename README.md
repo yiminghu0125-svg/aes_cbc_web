@@ -26,15 +26,27 @@
 
 ## Key / IV 格式
 
-Key 支援：
+CBC Key 支援：
 
 - UTF-8 文字，編碼後必須剛好 `32 bytes`
 - Base64，解碼後必須剛好 `32 bytes`
 
-IV 支援：
+CBC IV 支援：
 
 - UTF-8 文字，編碼後必須剛好 `16 bytes`
 - Base64，解碼後必須剛好 `16 bytes`
+
+GCM Key 支援：
+
+- UTF-8 文字，編碼後必須剛好 `32 bytes`
+- Base64，解碼後必須剛好 `32 bytes`
+- Hex，必須剛好 `64` 個 hex 字元
+
+GCM IV 支援：
+
+- UTF-8 文字，編碼後必須剛好 `12 bytes`
+- Base64，解碼後必須剛好 `12 bytes`
+- Hex，必須剛好 `24` 個 hex 字元
 
 ## 本機保存說明
 

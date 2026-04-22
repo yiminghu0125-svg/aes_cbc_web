@@ -13,7 +13,8 @@
     profiles: [],
     lastOutputName: ".enc.txt",
     lastOutputText: "",
-    lastRawDecryptedText: ""
+    lastRawDecryptedText: "",
+    lastGcmSources: null
   };
 
   const $ = (id) => document.getElementById(id);
@@ -131,6 +132,10 @@
     return bytes;
   }
 
+  function safeHexToBytes(value, expectedLength) {
+    try { return hexToBytes(value, expectedLength, ""); } catch (_) { return null; }
+  }
+
   function concatBytes(...parts) {
     const total = parts.reduce((sum, part) => sum + part.length, 0);
     const output = new Uint8Array(total);
@@ -157,15 +162,31 @@
     return list;
   }
 
-  function getIvCandidates(value) {
+  function getByteCandidates(value, expectedLength, includeHex) {
     const list = [];
     const raw = String(value || "");
     if (!raw.trim()) return list;
     const utf8 = encoder.encode(raw);
-    if (utf8.length === 16) list.push({ bytes: utf8, source: "UTF-8", score: 100 });
+    if (utf8.length === expectedLength) list.push({ bytes: utf8, source: "UTF-8", score: 100 });
     const b64 = safeBase64ToBytes(raw);
-    if (b64 && b64.length === 16) list.push({ bytes: b64, source: "Base64", score: utf8.length === 16 ? 80 : 120 });
+    if (b64 && b64.length === expectedLength) list.push({ bytes: b64, source: "Base64", score: utf8.length === expectedLength ? 80 : 120 });
+    if (includeHex) {
+      const hex = safeHexToBytes(raw, expectedLength);
+      if (hex) list.push({ bytes: hex, source: "Hex", score: 90 });
+    }
     return list;
+  }
+
+  function getIvCandidates(value) {
+    return getByteCandidates(value, 16, false);
+  }
+
+  function getGcmKeyCandidates(value) {
+    return getByteCandidates(value, 32, true);
+  }
+
+  function getGcmIvCandidates(value) {
+    return getByteCandidates(value, 12, true);
   }
 
   async function importAesKey(keyBytes) {
@@ -269,32 +290,41 @@
   }
 
   function resolveGcmParams(requireIv) {
-    const keyBytes = hexToBytes(els.keyInput.value, 32, "Key");
-    const ivBytes = requireIv ? hexToBytes(els.ivInput.value, 12, "IV") : null;
-    return { keyBytes, ivBytes };
+    const keyCandidates = getGcmKeyCandidates(els.keyInput.value);
+    const ivCandidates = requireIv ? getGcmIvCandidates(els.ivInput.value) : [];
+    if (!keyCandidates.length) throw new Error("Key 格式錯誤：GCM Key 需為 UTF-8 32 bytes、Base64 解碼後 32 bytes，或 64 個 hex 字元。");
+    if (requireIv && !ivCandidates.length) throw new Error("IV 格式錯誤：GCM IV 需為 UTF-8 12 bytes、Base64 解碼後 12 bytes，或 24 個 hex 字元。");
+    state.lastGcmSources = {
+      key: keyCandidates[0].source,
+      iv: requireIv ? ivCandidates[0].source : "密文內含"
+    };
+    return {
+      key: keyCandidates[0],
+      iv: requireIv ? ivCandidates[0] : null
+    };
   }
 
   async function encryptGcmContent(content) {
-    const { keyBytes, ivBytes } = resolveGcmParams(true);
+    const { key, iv } = resolveGcmParams(true);
     const parsed = tryParseJsonObject(content);
     if (parsed && Object.prototype.hasOwnProperty.call(parsed, "Body")) {
       const bodyPlain = typeof parsed.Body === "string" ? parsed.Body : stringifyGcmBody(parsed.Body);
-      parsed.Body = await encryptGcmText(bodyPlain, keyBytes, ivBytes);
+      parsed.Body = await encryptGcmText(bodyPlain, key.bytes, iv.bytes);
       return JSON.stringify(parsed, null, 2);
     }
-    return encryptGcmText(content, keyBytes, ivBytes);
+    return encryptGcmText(content, key.bytes, iv.bytes);
   }
 
   async function decryptGcmContent(content) {
-    const { keyBytes } = resolveGcmParams(false);
+    const { key } = resolveGcmParams(false);
     const parsed = tryParseJsonObject(content);
     if (parsed && typeof parsed.Body === "string") {
-      const bodyPlain = await decryptGcmText(parsed.Body, keyBytes);
+      const bodyPlain = await decryptGcmText(parsed.Body, key.bytes);
       const bodyJson = tryParseJsonObject(bodyPlain);
       parsed.Body = bodyJson || bodyPlain;
       return JSON.stringify(parsed, null, 2);
     }
-    return decryptGcmText(content, keyBytes);
+    return decryptGcmText(content, key.bytes);
   }
 
   function showOutput(output) {
@@ -417,8 +447,13 @@
       iv: els.ivInput.value
     };
 
-    if (!getKeyCandidates(profile.key).length) throw new Error("Key 格式錯誤，尚未儲存。");
-    if (!getIvCandidates(profile.iv).length) throw new Error("IV 格式錯誤，尚未儲存。");
+    if (state.cipherMode === "GCM") {
+      if (!getGcmKeyCandidates(profile.key).length) throw new Error("Key 格式錯誤：GCM Key 需為 UTF-8 32 bytes、Base64 解碼後 32 bytes，或 64 個 hex 字元。");
+      if (!getGcmIvCandidates(profile.iv).length) throw new Error("IV 格式錯誤：GCM IV 需為 UTF-8 12 bytes、Base64 解碼後 12 bytes，或 24 個 hex 字元。");
+    } else {
+      if (!getKeyCandidates(profile.key).length) throw new Error("Key 格式錯誤，尚未儲存。");
+      if (!getIvCandidates(profile.iv).length) throw new Error("IV 格式錯誤，尚未儲存。");
+    }
 
     const selectedValue = els.profileSelect.value;
     const selected = Number(selectedValue);
@@ -453,13 +488,13 @@
     els.cipherTitle.textContent = isGcm ? "AES-256-GCM" : "AES-256-CBC";
     els.cipherSubtitle.textContent = isGcm ? "NoPadding / IV12 / Tag16 / Base64" : "PKCS7 / UTF-8 / Base64";
     els.keyInput.placeholder = isGcm
-      ? "64 個 hex 字元，例如 32 bytes AES-256 key"
+      ? "UTF-8 32 bytes、Base64 32 bytes，或 64 個 hex 字元"
       : "UTF-8 32 bytes 或 Base64 解碼後 32 bytes";
     els.ivInput.placeholder = isGcm
-      ? "24 個 hex 字元，例如 12 bytes GCM IV"
+      ? "UTF-8 12 bytes、Base64 12 bytes，或 24 個 hex 字元"
       : "UTF-8 16 bytes 或 Base64 解碼後 16 bytes";
     log(isGcm
-      ? "已切換到 GCM：Key/IV 請使用 hex；若輸入完整 JSON，會加解密 Body 欄位。"
+      ? "已切換到 GCM：Key/IV 可使用 UTF-8、Base64 或 hex；若輸入完整 JSON，會加解密 Body 欄位。"
       : "已切換到 CBC：沿用原本 Key/IV 與整段文字加解密流程。");
   }
 
@@ -510,7 +545,7 @@
       const outputBytes = showOutput(output);
       const jsonNote = state.lastOutputName.includes("pretty.json") ? "已套用 JSON 美化排序。" : "";
       const sourceNote = state.cipherMode === "GCM"
-        ? "GCM Key 來源：Hex，IV 來源：Hex/密文內含。"
+        ? `GCM Key 來源：${state.lastGcmSources.key}，IV 來源：${state.lastGcmSources.iv}。`
         : `Key 來源：${pair.key.source}，IV 來源：${pair.iv.source}。`;
       log(`完成。${sourceNote}輸出約 ${formatBytes(outputBytes)}。${jsonNote}`);
     } catch (error) {
