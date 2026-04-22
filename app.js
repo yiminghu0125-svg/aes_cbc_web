@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.0.5";
+  const APP_VERSION = "V1.0.6";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const LARGE_TEXT_BYTES = 2 * 1024 * 1024;
@@ -24,6 +24,7 @@
     cryptoNotice: $("cryptoNotice"),
     profileSelect: $("profileSelect"),
     profileName: $("profileName"),
+    profileDetails: $("profileDetails"),
     keyInput: $("keyInput"),
     ivInput: $("ivInput"),
     showSecrets: $("showSecrets"),
@@ -579,6 +580,7 @@
   function bindEvents() {
     els.profileSelect.addEventListener("change", loadSelectedProfile);
     els.newProfileBtn.addEventListener("click", () => {
+      els.profileDetails.open = true;
       els.profileSelect.value = "";
       els.profileName.value = "";
       els.keyInput.value = "";
