@@ -2,6 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
+  const APP_VERSION = "V1.0.0";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const LARGE_TEXT_BYTES = 2 * 1024 * 1024;
@@ -19,6 +20,7 @@
 
   const $ = (id) => document.getElementById(id);
   const els = {
+    appVersion: $("appVersion"),
     cryptoNotice: $("cryptoNotice"),
     profileSelect: $("profileSelect"),
     profileName: $("profileName"),
@@ -685,6 +687,7 @@
   }
 
   function init() {
+    els.appVersion.textContent = `Version ${APP_VERSION}`;
     if (!window.crypto || !crypto.subtle) {
       els.cryptoNotice.hidden = false;
       log("Web Crypto API 不可用，無法執行加解密。", true);

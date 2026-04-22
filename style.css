@@ -81,6 +81,32 @@ button.danger { color: var(--danger); }
   text-transform: uppercase;
 }
 
+.hero-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.hero-meta .eyebrow {
+  margin: 0;
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0.18rem 0.62rem;
+  border: 1px solid rgba(14, 117, 107, 0.24);
+  border-radius: 999px;
+  color: var(--accent-2);
+  background: rgba(255, 255, 255, 0.48);
+  font-family: "Segoe UI", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
 h1, h2 { margin: 0; line-height: 1.05; }
 h1 { font-size: clamp(2rem, 5.2vw, 4.35rem); letter-spacing: -0.055em; line-height: 1.12; }
 h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
