@@ -113,7 +113,8 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
 .lead { max-width: 650px; margin: 18px 0 0; color: var(--muted); font-size: 1.08rem; }
 
 .hero-card {
-  min-width: 230px;
+  width: 310px;
+  min-width: 310px;
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -125,7 +126,8 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
 .hero-card small { color: var(--muted); margin-top: 6px; }
 .status-dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: #3ba66f; box-shadow: 0 0 0 7px rgba(59, 166, 111, 0.15); }
 .cipher-toggle {
-  display: inline-flex;
+  display: flex;
+  width: 156px;
   margin: 0 0 14px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -133,6 +135,8 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
   background: rgba(255, 255, 255, 0.44);
 }
 .cipher-toggle button {
+  flex: 1 0 0;
+  min-width: 0;
   padding: 0.46rem 0.78rem;
   color: var(--muted);
   background: transparent;
@@ -248,7 +252,7 @@ textarea {
 @media (max-width: 860px) {
   .shell { width: min(100% - 22px, 1180px); padding: 24px 0; }
   .hero, .grid { grid-template-columns: 1fr; }
-  .hero-card { min-width: 0; }
+  .hero-card { width: 100%; min-width: 0; }
   .panel { padding: 18px; }
   h1 { letter-spacing: -0.05em; }
 }
