@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.0.4";
+  const APP_VERSION = "V1.0.5";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const LARGE_TEXT_BYTES = 2 * 1024 * 1024;
@@ -592,13 +592,15 @@
       const selectedValue = els.profileSelect.value;
       const selected = Number(selectedValue);
       if (selectedValue === "" || !Number.isInteger(selected) || selected < 0 || selected >= state.profiles.length) return;
+      const current = state.profiles[selected];
+      if (!confirm(`確定要刪除目前設定「${current.name}」？\n\n此操作會從本機瀏覽器移除這組 Key/IV。`)) return;
       const removed = state.profiles.splice(selected, 1)[0];
       saveProfiles();
       renderProfiles(Math.max(0, selected - 1));
       log(`已刪除「${removed.name}」。`);
     });
     els.clearAllBtn.addEventListener("click", () => {
-      if (!confirm("確定要清除這個瀏覽器保存的所有 Key/IV profiles？")) return;
+      if (!confirm("確定要清除這個瀏覽器保存的所有 Key/IV profiles？\n\n此操作會移除全部本機設定。")) return;
       state.profiles = [];
       saveProfiles();
       renderProfiles();
