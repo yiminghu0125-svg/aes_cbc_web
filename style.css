@@ -562,7 +562,67 @@ textarea {
   min-height: 230px;
 }
 
+#logRestoreInput {
+  min-height: 230px;
+}
+
+.log-restore-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.85fr);
+  gap: 14px;
+}
+
+.log-result-block {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.log-result-block pre {
+  min-height: 220px;
+  max-height: 460px;
+  margin: 0;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.46);
+  font-family: Consolas, "Cascadia Mono", monospace;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log-restore-details {
+  display: grid;
+  gap: 8px;
+}
+
+.log-detail-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.log-detail-item code {
+  padding: 0.24rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  overflow-wrap: anywhere;
+}
+
 .diff-summary {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
   min-height: 52px;
   padding: 14px 16px;
   border: 1px solid rgba(14, 117, 107, 0.22);
@@ -572,6 +632,13 @@ textarea {
   font-family: var(--font-ui);
   font-weight: 800;
   white-space: pre-wrap;
+}
+
+.diff-summary span {
+  padding: 0.34rem 0.58rem;
+  border: 1px solid rgba(23, 32, 27, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.46);
 }
 
 .diff-summary.match {
@@ -585,9 +652,44 @@ textarea {
   background: rgba(255, 239, 224, 0.78);
 }
 
+.diff-filter {
+  display: flex;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.38);
+  flex-wrap: wrap;
+}
+
+.diff-filter button {
+  padding: 0.55rem 0.9rem;
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.diff-filter button.active {
+  color: #fffdf5;
+  background: var(--accent-2);
+}
+
 .diff-list {
   display: grid;
   gap: 12px;
+}
+
+.diff-empty {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.34);
+  font-family: var(--font-ui);
+  font-weight: 800;
 }
 
 .diff-item {
@@ -662,7 +764,9 @@ textarea {
   }
 
   .tool-tabs,
-  .tool-tabs button {
+  .tool-tabs button,
+  .diff-filter,
+  .diff-filter button {
     width: 100%;
   }
 }
@@ -670,6 +774,7 @@ textarea {
 @media (max-width: 920px) {
   .converter-grid,
   .json-diff-grid,
+  .log-restore-grid,
   .diff-values,
   .hash-grid {
     grid-template-columns: 1fr;

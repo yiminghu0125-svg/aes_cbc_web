@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AES-256 網頁加解密工具</title>
-  <link rel="stylesheet" href="style.css?v=1.4.1">
+  <link rel="stylesheet" href="style.css?v=1.5.1">
 </head>
 <body>
   <main class="shell">
@@ -19,6 +19,9 @@
         <button id="jsonDiffFeatureBtn" type="button" data-feature-target="jsonDiff">
           JSON Diff
         </button>
+        <button id="logRestoreFeatureBtn" type="button" data-feature-target="logRestore">
+          Log 整理
+        </button>
         <button id="hashFeatureBtn" type="button" data-feature-target="hash">
           Hash / HMAC
         </button>
@@ -32,7 +35,7 @@
             <div>
               <div class="hero-meta">
                 <p class="eyebrow">Local browser only</p>
-                <span class="version-badge" id="appVersion">Version V1.4.1</span>
+                <span class="version-badge" id="appVersion">Version V1.5.1</span>
               </div>
               <h1 class="feature-title">AES-256 網頁加解密工具</h1>
               <p class="lead">資料、Key、IV 都只在你的瀏覽器本機處理；不需要伺服器，也不會上傳。</p>
@@ -178,7 +181,7 @@
             <div>
               <div class="hero-meta">
                 <p class="eyebrow">Local browser only</p>
-                <span class="version-badge">Version V1.4.1</span>
+                <span class="version-badge">Version V1.5.1</span>
               </div>
               <h2 class="feature-title" id="toolboxTitle">文字編碼轉換</h2>
               <p class="lead">在本機瀏覽器即時轉換 UTF-8、Base64、Hex 內容；輸入資料不會離開你的電腦。</p>
@@ -223,7 +226,7 @@
             <div>
               <div class="hero-meta">
                 <p class="eyebrow">Local browser only</p>
-                <span class="version-badge">Version V1.4.1</span>
+                <span class="version-badge">Version V1.5.1</span>
               </div>
               <h2 class="feature-title" id="jsonDiffTitle">JSON Diff 比對工具</h2>
               <p class="lead">在本機格式化、排序並比對兩份 JSON；差異結果只在你的瀏覽器中產生。</p>
@@ -241,7 +244,7 @@
                   <span>JSON 美化排序</span>
                 </label>
                 <button class="primary" id="runJsonDiffBtn" type="button">比對</button>
-                <button class="ghost" id="copyJsonDiffBtn" type="button">複製差異結果</button>
+                <button class="ghost" id="copyJsonDiffBtn" type="button">複製完整差異</button>
                 <button class="ghost" id="clearJsonDiffBtn" type="button">清空</button>
               </div>
             </div>
@@ -276,7 +279,71 @@
               尚未比對。
             </section>
 
+            <div class="diff-filter" id="jsonDiffFilter" role="group" aria-label="差異篩看顯示">
+              <button class="active" type="button" data-diff-filter="all">顯示全部</button>
+              <button type="button" data-diff-filter="field">只看欄位差異</button>
+              <button type="button" data-diff-filter="value">只看欄位值差異</button>
+              <button type="button" data-diff-filter="type">只看型別差異</button>
+            </div>
+
             <div class="diff-list" id="jsonDiffList"></div>
+          </article>
+        </section>
+
+        <section class="toolbox feature-view" id="logRestoreView" hidden aria-labelledby="logRestoreTitle">
+          <div class="toolbox-head">
+            <div>
+              <div class="hero-meta">
+                <p class="eyebrow">Local browser only</p>
+                <span class="version-badge">Version V1.5.1</span>
+              </div>
+              <h2 class="feature-title" id="logRestoreTitle">Log 整理 / 還原工具</h2>
+              <p class="lead">還原可辨識的 JSON、escaped JSON、query string、key=value 與 headers；無法安全辨識時保留原文。</p>
+            </div>
+          </div>
+
+          <article class="panel utility-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Restore / Format</p>
+              </div>
+              <div class="result-tools">
+                <label class="checkline compact">
+                  <input id="logRestoreSortKeys" type="checkbox" checked>
+                  <span>JSON object key 排序</span>
+                </label>
+                <button class="primary" id="runLogRestoreBtn" type="button">整理 / 還原</button>
+                <button class="ghost" id="copyLogRestoreBtn" type="button">複製整理結果</button>
+                <button class="ghost" id="clearLogRestoreBtn" type="button">清空</button>
+              </div>
+            </div>
+
+            <label class="field">
+              <span>原始 Log / Body / 字串</span>
+              <textarea id="logRestoreInput" spellcheck="false" placeholder="貼上整段 log、escaped JSON、query string、key=value 或 HTTP headers"></textarea>
+              <small class="text-stats" id="logRestoreInputStats">0 字元 / 約 0 B</small>
+            </label>
+
+            <section class="diff-summary" id="logRestoreStatus" aria-live="polite">
+              尚未整理。
+            </section>
+
+            <div class="log-restore-grid">
+              <section class="log-result-block">
+                <div class="section-title">整理後結果</div>
+                <pre id="logRestoreOutput">尚無結果。</pre>
+              </section>
+
+              <section class="log-result-block">
+                <div class="section-title">原始內容</div>
+                <pre id="logRestoreOriginal">尚無原始內容。</pre>
+              </section>
+            </div>
+
+            <div class="log-result-block" id="logRestoreDetailsBlock" hidden>
+              <div class="section-title">展開層級</div>
+              <div class="log-restore-details" id="logRestoreDetails"></div>
+            </div>
           </article>
         </section>
 
@@ -285,7 +352,7 @@
             <div>
               <div class="hero-meta">
                 <p class="eyebrow">Local browser only</p>
-                <span class="version-badge">Version V1.4.1</span>
+                <span class="version-badge">Version V1.5.1</span>
               </div>
               <h2 class="feature-title" id="hashTitle">Hash / HMAC 計算工具</h2>
               <p class="lead">使用瀏覽器 Web Crypto 計算 Hash 或 HMAC；原文與 Key 都只在本機處理。</p>
@@ -364,7 +431,8 @@
     </div>
   </main>
 
-  <script src="app.js?v=1.4.1"></script>
+  <script src="shared-utils.js?v=1.5.1"></script>
+  <script src="app.js?v=1.5.1"></script>
 </body>
 </html>
 

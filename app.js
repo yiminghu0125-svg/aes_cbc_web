@@ -2,12 +2,32 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.4.1";
+  const APP_VERSION = "V1.5.1";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const fatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
-  const LARGE_TEXT_BYTES = 2 * 1024 * 1024;
-  const VERY_LARGE_TEXT_BYTES = 10 * 1024 * 1024;
+  const {
+    LARGE_TEXT_BYTES,
+    formatBytes,
+    getTextByteLength,
+    confirmLargeText,
+    normalizeBase64,
+    bytesToBase64,
+    base64ToBytes,
+    bytesToHex,
+    normalizeJsonValue,
+    sortJsonValue,
+    parseJsonInput,
+    prettyPrintJson,
+    parseJsonSafely,
+    tryUnescapeJson,
+    expandNestedJson,
+    parseQueryString,
+    parseKeyValueText,
+    parseHeaderBlock,
+    detectStructuredFormat,
+    copyTextToClipboard
+  } = window.SharedUtils;
 
   const state = {
     mode: "E",
@@ -20,6 +40,10 @@
     converterSyncing: false,
     converterLastSource: "utf8",
     lastJsonDiffText: "",
+    fullJsonDiffResults: [],
+    selectedJsonDiffFilter: "all",
+    jsonDiffHasCompared: false,
+    lastLogRestoreText: "",
     lastHashText: "",
     hashLastOutput: "hex"
   };
@@ -85,7 +109,21 @@
     jsonDiffLeftOutput: $("jsonDiffLeftOutput"),
     jsonDiffRightOutput: $("jsonDiffRightOutput"),
     jsonDiffSummary: $("jsonDiffSummary"),
+    jsonDiffFilter: $("jsonDiffFilter"),
     jsonDiffList: $("jsonDiffList"),
+    logRestoreFeatureBtn: $("logRestoreFeatureBtn"),
+    logRestoreView: $("logRestoreView"),
+    logRestoreSortKeys: $("logRestoreSortKeys"),
+    runLogRestoreBtn: $("runLogRestoreBtn"),
+    copyLogRestoreBtn: $("copyLogRestoreBtn"),
+    clearLogRestoreBtn: $("clearLogRestoreBtn"),
+    logRestoreInput: $("logRestoreInput"),
+    logRestoreInputStats: $("logRestoreInputStats"),
+    logRestoreStatus: $("logRestoreStatus"),
+    logRestoreOutput: $("logRestoreOutput"),
+    logRestoreOriginal: $("logRestoreOriginal"),
+    logRestoreDetailsBlock: $("logRestoreDetailsBlock"),
+    logRestoreDetails: $("logRestoreDetails"),
     hashAlgorithm: $("hashAlgorithm"),
     hmacKeyField: $("hmacKeyField"),
     hmacKeyInput: $("hmacKeyInput"),
@@ -115,18 +153,21 @@
       aes: "AES 加解密工具",
       converter: "文字編碼轉換工具",
       jsonDiff: "JSON Diff 比對工具",
+      logRestore: "Log 整理 / 還原工具",
       hash: "Hash / HMAC 計算工具"
     };
     const views = {
       aes: els.aesView,
       converter: els.converterView,
       jsonDiff: els.jsonDiffView,
+      logRestore: els.logRestoreView,
       hash: els.hashView
     };
     const buttons = {
       aes: els.aesFeatureBtn,
       converter: els.converterFeatureBtn,
       jsonDiff: els.jsonDiffFeatureBtn,
+      logRestore: els.logRestoreFeatureBtn,
       hash: els.hashFeatureBtn
     };
     Object.keys(views).forEach((name) => {
@@ -139,16 +180,6 @@
     if (!silent) {
       log(`已切換到${labels[feature] || labels.aes}。`);
     }
-  }
-
-  function formatBytes(bytes) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
-  }
-
-  function getTextByteLength(text) {
-    return encoder.encode(text || "").length;
   }
 
   function updateInputStats() {
@@ -185,16 +216,6 @@
     els.hashInputStats.classList.toggle("warn", bytes >= LARGE_TEXT_BYTES);
   }
 
-  function confirmLargeText(bytes, action) {
-    if (bytes >= VERY_LARGE_TEXT_BYTES) {
-      return confirm(`${action}內容約 ${formatBytes(bytes)}，瀏覽器可能明顯變慢甚至暫時無回應。確定要繼續？`);
-    }
-    if (bytes >= LARGE_TEXT_BYTES) {
-      return confirm(`${action}內容約 ${formatBytes(bytes)}，處理與顯示可能需要一些時間。要繼續嗎？`);
-    }
-    return true;
-  }
-
   async function loadTextFile(file) {
     if (!file) return;
     if (!confirmLargeText(file.size, "讀取的檔案")) return;
@@ -202,34 +223,6 @@
     els.fileName.textContent = `${file.name} (${formatBytes(file.size)})`;
     updateInputStats();
     log(`已讀取檔案：${file.name}，大小 ${formatBytes(file.size)}。`);
-  }
-
-  function normalizeBase64(value) {
-    return String(value || "").replace(/\s+/g, "");
-  }
-
-  function bytesToBase64(bytes) {
-    let binary = "";
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunk) {
-      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-    }
-    return btoa(binary);
-  }
-
-  function base64ToBytes(value) {
-    const normalized = normalizeBase64(value);
-    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized) || normalized.length % 4 !== 0) {
-      throw new Error("不是有效的 Base64 格式。");
-    }
-    const binary = atob(normalized);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-  }
-
-  function bytesToHex(bytes) {
-    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
   }
 
   function converterBase64ToBytes(value) {
@@ -401,35 +394,6 @@
     return score;
   }
 
-  function normalizeJsonValue(value) {
-    if (Array.isArray(value)) return value.map(normalizeJsonValue);
-    if (value && typeof value === "object") {
-      return Object.keys(value).sort((a, b) => a.localeCompare(b, "zh-Hant")).reduce((sorted, key) => {
-        sorted[key] = normalizeJsonValue(value[key]);
-        return sorted;
-      }, {});
-    }
-    return value;
-  }
-
-  function sortJsonValue(value) {
-    return normalizeJsonValue(value);
-  }
-
-  function parseJsonInput(text, label) {
-    const raw = String(text || "");
-    if (!raw.trim()) throw new Error(`${label} JSON 格式錯誤：內容為空。`);
-    try {
-      return JSON.parse(raw);
-    } catch (error) {
-      throw new Error(`${label} JSON 格式錯誤：${error.message || String(error)}`);
-    }
-  }
-
-  function prettyPrintJson(value, sortKeys) {
-    return JSON.stringify(sortKeys ? normalizeJsonValue(value) : value, null, 2);
-  }
-
   function getJsonType(value) {
     if (value === null) return "null";
     if (Array.isArray(value)) return "array";
@@ -450,6 +414,34 @@
     return JSON.stringify(value, null, 2);
   }
 
+  const DIFF_CATEGORY_LABELS = {
+    field: "欄位差異",
+    value: "欄位值差異",
+    type: "型別差異"
+  };
+
+  const DIFF_TYPE_LABELS = {
+    field_missing: "缺少欄位",
+    field_extra: "新增欄位",
+    value_changed: "值不同",
+    type_changed: "型別不同"
+  };
+
+  function createDiffItem(type, path, leftValue, rightValue, leftType, rightType) {
+    const category = type === "type_changed" ? "type" : type === "value_changed" ? "value" : "field";
+    return {
+      type,
+      category,
+      categoryLabel: DIFF_CATEGORY_LABELS[category],
+      label: DIFF_TYPE_LABELS[type],
+      path: formatJsonPath(path),
+      leftValue,
+      rightValue,
+      leftType,
+      rightType
+    };
+  }
+
   function isSamePrimitive(left, right) {
     return Object.is(left, right);
   }
@@ -461,16 +453,7 @@
     const rightType = getJsonType(right);
 
     if (leftType !== rightType) {
-      diffs.push({
-        type: "type_changed",
-        category: "欄位值差異",
-        label: "型別不同",
-        path: formatJsonPath(currentPath),
-        leftValue: left,
-        rightValue: right,
-        leftType,
-        rightType
-      });
+      diffs.push(createDiffItem("type_changed", currentPath, left, right, leftType, rightType));
       return diffs;
     }
 
@@ -482,16 +465,7 @@
 
       leftKeys.forEach((key) => {
         if (!rightKeySet.has(key)) {
-          diffs.push({
-            type: "field_missing",
-            category: "欄位差異",
-            label: "缺少欄位",
-            path: formatJsonPath(currentPath.concat(key)),
-            leftValue: left[key],
-            rightValue: undefined,
-            leftType: getJsonType(left[key]),
-            rightType: "missing"
-          });
+          diffs.push(createDiffItem("field_missing", currentPath.concat(key), left[key], undefined, getJsonType(left[key]), "missing"));
         } else {
           diffs.push(...deepDiffJson(left[key], right[key], currentPath.concat(key)));
         }
@@ -499,16 +473,7 @@
 
       rightKeys.forEach((key) => {
         if (!leftKeySet.has(key)) {
-          diffs.push({
-            type: "field_extra",
-            category: "欄位差異",
-            label: "新增欄位",
-            path: formatJsonPath(currentPath.concat(key)),
-            leftValue: undefined,
-            rightValue: right[key],
-            leftType: "missing",
-            rightType: getJsonType(right[key])
-          });
+          diffs.push(createDiffItem("field_extra", currentPath.concat(key), undefined, right[key], "missing", getJsonType(right[key])));
         }
       });
       return diffs;
@@ -520,27 +485,9 @@
         const existsLeft = index < left.length;
         const existsRight = index < right.length;
         if (!existsRight) {
-          diffs.push({
-            type: "field_missing",
-            category: "欄位差異",
-            label: "缺少欄位",
-            path: formatJsonPath(currentPath.concat(index)),
-            leftValue: left[index],
-            rightValue: undefined,
-            leftType: getJsonType(left[index]),
-            rightType: "missing"
-          });
+          diffs.push(createDiffItem("field_missing", currentPath.concat(index), left[index], undefined, getJsonType(left[index]), "missing"));
         } else if (!existsLeft) {
-          diffs.push({
-            type: "field_extra",
-            category: "欄位差異",
-            label: "新增欄位",
-            path: formatJsonPath(currentPath.concat(index)),
-            leftValue: undefined,
-            rightValue: right[index],
-            leftType: "missing",
-            rightType: getJsonType(right[index])
-          });
+          diffs.push(createDiffItem("field_extra", currentPath.concat(index), undefined, right[index], "missing", getJsonType(right[index])));
         } else {
           diffs.push(...deepDiffJson(left[index], right[index], currentPath.concat(index)));
         }
@@ -549,16 +496,7 @@
     }
 
     if (!isSamePrimitive(left, right)) {
-      diffs.push({
-        type: "value_changed",
-        category: "欄位值差異",
-        label: "值不同",
-        path: formatJsonPath(currentPath),
-        leftValue: left,
-        rightValue: right,
-        leftType,
-        rightType
-      });
+      diffs.push(createDiffItem("value_changed", currentPath, left, right, leftType, rightType));
     }
     return diffs;
   }
@@ -723,28 +661,204 @@
     log("已複製目前轉換欄位到剪貼簿。");
   }
 
-  async function copyTextToClipboard(text, fallbackElement) {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (_) {
-      if (fallbackElement) {
-        fallbackElement.focus();
-        fallbackElement.select();
+  const LOG_FORMAT_LABELS = {
+    json: "JSON",
+    escaped_json: "Escaped JSON",
+    nested_json_string: "Nested JSON string",
+    query_string: "Query String",
+    key_value: "key=value 類型",
+    headers: "HTTP Header block",
+    plain_text: "原始文字"
+  };
+
+  function entriesToObject(entries) {
+    return entries.reduce((output, entry) => {
+      if (Object.prototype.hasOwnProperty.call(output, entry.key)) {
+        output[entry.key] = Array.isArray(output[entry.key]) ? output[entry.key].concat(entry.value) : [output[entry.key], entry.value];
+      } else {
+        output[entry.key] = entry.value;
       }
-      document.execCommand("copy");
+      return output;
+    }, {});
+  }
+
+  function formatKeyValueList(entries) {
+    return entries.map((entry) => `${entry.key}: ${entry.value}`).join("\n");
+  }
+
+  function formatPlainText(input) {
+    return String(input || "").replace(/\r\n/g, "\n").trim();
+  }
+
+  function formatStructuredOutput(result, sortKeys) {
+    if (["json", "escaped_json", "nested_json_string"].includes(result.format)) {
+      return prettyPrintJson(result.value, sortKeys);
     }
+    if (["query_string", "key_value", "headers"].includes(result.format)) {
+      const objectView = entriesToObject(result.entries);
+      const listView = formatKeyValueList(result.entries);
+      const jsonView = JSON.stringify(sortKeys ? normalizeJsonValue(objectView) : objectView, null, 2);
+      return `List view\n${listView}\n\nJSON view\n${jsonView}`;
+    }
+    return formatPlainText(result.original);
+  }
+
+  function restoreLogInput(input, sortKeys) {
+    const original = String(input || "");
+    const trimmed = original.trim();
+    if (!trimmed) {
+      return {
+        ok: false,
+        format: "plain_text",
+        status: "請先貼上要整理的 log / body / 字串。",
+        original,
+        output: "",
+        details: []
+      };
+    }
+
+    const format = detectStructuredFormat(trimmed);
+    const details = [];
+    const result = { ok: true, format, original, details };
+
+    if (format === "json" || format === "nested_json_string") {
+      const parsed = parseJsonSafely(trimmed);
+      result.value = expandNestedJson(parsed.value, 0, 3, "data", details);
+      result.format = details.some((detail) => detail.status === "expanded") ? "nested_json_string" : "json";
+      result.status = result.format === "nested_json_string" ? "已辨識為 Nested JSON string，並展開可解析的 JSON 字串欄位。" : "已辨識為 JSON。";
+    } else if (format === "escaped_json") {
+      const unescaped = tryUnescapeJson(trimmed);
+      result.value = expandNestedJson(unescaped.value, 0, 3, "data", details);
+      result.status = "已辨識為 Escaped JSON，已還原並格式化。";
+      if (details.some((detail) => detail.status === "expanded")) result.status += " 內嵌 JSON 字串也已展開。";
+    } else if (format === "query_string") {
+      result.entries = parseQueryString(trimmed);
+      result.status = "已辨識為 Query String，已 URL decode 並拆成 key-value。";
+    } else if (format === "key_value") {
+      result.entries = parseKeyValueText(trimmed);
+      result.status = "已辨識為 key=value 類型，已拆成結構化列表。";
+    } else if (format === "headers") {
+      result.entries = parseHeaderBlock(trimmed);
+      result.status = "已辨識為 Header block，已拆成結構化列表。";
+    } else {
+      result.status = "未辨識為可結構化格式，以下為原始內容。";
+    }
+
+    result.output = formatStructuredOutput(result, sortKeys);
+    return result;
+  }
+
+  function updateLogRestoreStats() {
+    const text = els.logRestoreInput.value || "";
+    const bytes = getTextByteLength(text);
+    els.logRestoreInputStats.textContent = `${text.length.toLocaleString()} 字元 / 約 ${formatBytes(bytes)}`;
+    els.logRestoreInputStats.classList.toggle("warn", bytes >= LARGE_TEXT_BYTES);
+  }
+
+  function renderLogRestoreDetails(details) {
+    els.logRestoreDetails.innerHTML = "";
+    if (!details.length) {
+      els.logRestoreDetailsBlock.hidden = true;
+      return;
+    }
+    els.logRestoreDetailsBlock.hidden = false;
+    details.forEach((detail) => {
+      const item = document.createElement("div");
+      item.className = "log-detail-item";
+      const path = document.createElement("code");
+      path.textContent = detail.path;
+      const status = document.createElement("span");
+      status.textContent = detail.status === "expanded"
+        ? `第 ${detail.depth} 層：已展開 JSON`
+        : `第 ${detail.depth} 層：展開失敗，保留原始字串`;
+      item.appendChild(path);
+      item.appendChild(status);
+      els.logRestoreDetails.appendChild(item);
+    });
+  }
+
+  function runLogRestore() {
+    const input = els.logRestoreInput.value || "";
+    const bytes = getTextByteLength(input);
+    if (!confirmLargeText(bytes, "即將整理的")) return;
+
+    const result = restoreLogInput(input, els.logRestoreSortKeys.checked);
+    els.logRestoreStatus.classList.remove("match", "mismatch");
+    els.logRestoreStatus.classList.add(result.ok ? "match" : "mismatch");
+    els.logRestoreStatus.textContent = result.status;
+    els.logRestoreOutput.textContent = result.output || "尚無結果。";
+    els.logRestoreOriginal.textContent = result.original || "尚無原始內容。";
+    renderLogRestoreDetails(result.details || []);
+    state.lastLogRestoreText = result.output || "";
+    log(result.ok ? `${result.status} 偵測類型：${LOG_FORMAT_LABELS[result.format]}。` : result.status, !result.ok);
+  }
+
+  function clearLogRestore() {
+    els.logRestoreInput.value = "";
+    els.logRestoreStatus.classList.remove("match", "mismatch");
+    els.logRestoreStatus.textContent = "尚未整理。";
+    els.logRestoreOutput.textContent = "尚無結果。";
+    els.logRestoreOriginal.textContent = "尚無原始內容。";
+    els.logRestoreDetails.innerHTML = "";
+    els.logRestoreDetailsBlock.hidden = true;
+    state.lastLogRestoreText = "";
+    updateLogRestoreStats();
+    log("已清空 Log 整理 / 還原工具。");
+  }
+
+  function summarizeDiffs(diffs) {
+    return diffs.reduce((summary, diff) => {
+      summary.total += 1;
+      summary[diff.category] += 1;
+      return summary;
+    }, { total: 0, field: 0, value: 0, type: 0 });
+  }
+
+  function filterDiffs(diffs, selectedFilter) {
+    if (selectedFilter === "all") return diffs;
+    return diffs.filter((diff) => diff.category === selectedFilter);
+  }
+
+  function updateJsonDiffFilterButtons() {
+    els.jsonDiffFilter.querySelectorAll("[data-diff-filter]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.diffFilter === state.selectedJsonDiffFilter);
+    });
+  }
+
+  function renderJsonDiffSummary(diffs) {
+    const summary = summarizeDiffs(diffs);
+    els.jsonDiffSummary.classList.remove("match", "mismatch");
+    if (!summary.total) {
+      els.jsonDiffSummary.classList.add("match");
+      els.jsonDiffSummary.textContent = "兩份 JSON 在排序正規化後內容一致";
+      return;
+    }
+
+    els.jsonDiffSummary.classList.add("mismatch");
+    els.jsonDiffSummary.innerHTML = "";
+    [
+      ["全部差異", summary.total],
+      ["欄位差異", summary.field],
+      ["欄位值差異", summary.value],
+      ["型別差異", summary.type]
+    ].forEach(([label, count]) => {
+      const item = document.createElement("span");
+      item.textContent = `${label}：共 ${count} 筆`;
+      els.jsonDiffSummary.appendChild(item);
+    });
   }
 
   function diffToPlainText(diffs) {
-    const fieldDiffs = diffs.filter((diff) => diff.category === "欄位差異").length;
-    const valueDiffs = diffs.filter((diff) => diff.category === "欄位值差異").length;
+    const summary = summarizeDiffs(diffs);
     if (!diffs.length) return "兩份 JSON 在排序正規化後內容一致";
     return [
-      `欄位差異：共 ${fieldDiffs} 筆`,
-      `欄位值差異：共 ${valueDiffs} 筆`,
+      `全部差異：共 ${summary.total} 筆`,
+      `欄位差異：共 ${summary.field} 筆`,
+      `欄位值差異：共 ${summary.value} 筆`,
+      `型別差異：共 ${summary.type} 筆`,
       "",
       ...diffs.map((diff, index) => [
-        `#${index + 1} ${diff.category} / ${diff.label}`,
+        `#${index + 1} ${diff.categoryLabel} / ${diff.label}`,
         `JSON Path: ${diff.path}`,
         `左側值: ${stringifyDiffValue(diff.leftValue)}`,
         `右側值: ${stringifyDiffValue(diff.rightValue)}`,
@@ -753,9 +867,16 @@
     ].join("\n\n");
   }
 
-  function renderJsonDiffList(diffs) {
+  function renderJsonDiffList(diffs, fullDiffs) {
     els.jsonDiffList.innerHTML = "";
-    if (!diffs.length) return;
+    if (!fullDiffs.length) return;
+    if (!diffs.length) {
+      const empty = document.createElement("p");
+      empty.className = "diff-empty";
+      empty.textContent = "目前篩選條件下沒有差異";
+      els.jsonDiffList.appendChild(empty);
+      return;
+    }
     diffs.forEach((diff) => {
       const item = document.createElement("article");
       item.className = "diff-item";
@@ -764,7 +885,7 @@
       meta.className = "diff-item-meta";
 
       const badge = document.createElement("strong");
-      badge.textContent = `${diff.category} / ${diff.label}`;
+      badge.textContent = `${diff.categoryLabel} / ${diff.label}`;
       meta.appendChild(badge);
 
       const path = document.createElement("code");
@@ -793,6 +914,18 @@
     });
   }
 
+  function renderJsonDiffResults() {
+    if (!state.jsonDiffHasCompared) {
+      updateJsonDiffFilterButtons();
+      return;
+    }
+    const visibleDiffs = filterDiffs(state.fullJsonDiffResults, state.selectedJsonDiffFilter);
+    updateJsonDiffFilterButtons();
+    renderJsonDiffSummary(state.fullJsonDiffResults);
+    renderJsonDiffList(visibleDiffs, state.fullJsonDiffResults);
+    state.lastJsonDiffText = diffToPlainText(state.fullJsonDiffResults);
+  }
+
   function runJsonDiff() {
     const leftBytes = getTextByteLength(els.jsonDiffLeftInput.value);
     const rightBytes = getTextByteLength(els.jsonDiffRightInput.value);
@@ -800,9 +933,14 @@
 
     els.jsonDiffLeftOutput.value = "";
     els.jsonDiffRightOutput.value = "";
+    state.fullJsonDiffResults = [];
+    state.selectedJsonDiffFilter = "all";
+    state.jsonDiffHasCompared = false;
     els.jsonDiffSummary.textContent = "尚未比對。";
+    els.jsonDiffSummary.classList.remove("match", "mismatch");
     els.jsonDiffList.innerHTML = "";
     state.lastJsonDiffText = "";
+    updateJsonDiffFilterButtons();
 
     const errors = [];
     let leftParsed;
@@ -818,7 +956,14 @@
       errors.push(error.message);
     }
     if (errors.length) {
+      state.fullJsonDiffResults = [];
+      state.selectedJsonDiffFilter = "all";
+      state.jsonDiffHasCompared = false;
+      state.lastJsonDiffText = "";
+      els.jsonDiffList.innerHTML = "";
+      els.jsonDiffSummary.classList.remove("match", "mismatch");
       els.jsonDiffSummary.textContent = errors.join("\n");
+      updateJsonDiffFilterButtons();
       log(errors.join("；"), true);
       return;
     }
@@ -827,18 +972,17 @@
     els.jsonDiffLeftOutput.value = prettyPrintJson(leftParsed, sortKeys);
     els.jsonDiffRightOutput.value = prettyPrintJson(rightParsed, sortKeys);
     const diffs = deepDiffJson(normalizeJsonValue(leftParsed), normalizeJsonValue(rightParsed));
-    const fieldDiffs = diffs.filter((diff) => diff.category === "欄位差異").length;
-    const valueDiffs = diffs.filter((diff) => diff.category === "欄位值差異").length;
+    const summary = summarizeDiffs(diffs);
 
-    if (!diffs.length) {
-      els.jsonDiffSummary.textContent = "兩份 JSON 在排序正規化後內容一致";
+    state.fullJsonDiffResults = diffs;
+    state.selectedJsonDiffFilter = "all";
+    state.jsonDiffHasCompared = true;
+    renderJsonDiffResults();
+    if (!summary.total) {
       log("JSON Diff 完成：兩份 JSON 在排序正規化後內容一致。");
     } else {
-      els.jsonDiffSummary.textContent = `欄位差異：共 ${fieldDiffs} 筆；欄位值差異：共 ${valueDiffs} 筆`;
-      log(`JSON Diff 完成：欄位差異 ${fieldDiffs} 筆，欄位值差異 ${valueDiffs} 筆。`);
+      log(`JSON Diff 完成：全部差異 ${summary.total} 筆，欄位差異 ${summary.field} 筆，欄位值差異 ${summary.value} 筆，型別差異 ${summary.type} 筆。`);
     }
-    renderJsonDiffList(diffs);
-    state.lastJsonDiffText = diffToPlainText(diffs);
   }
 
   function clearJsonDiff() {
@@ -846,9 +990,14 @@
     els.jsonDiffRightInput.value = "";
     els.jsonDiffLeftOutput.value = "";
     els.jsonDiffRightOutput.value = "";
+    state.fullJsonDiffResults = [];
+    state.selectedJsonDiffFilter = "all";
+    state.jsonDiffHasCompared = false;
     els.jsonDiffSummary.textContent = "尚未比對。";
+    els.jsonDiffSummary.classList.remove("match", "mismatch");
     els.jsonDiffList.innerHTML = "";
     state.lastJsonDiffText = "";
+    updateJsonDiffFilterButtons();
     updateJsonDiffStats();
     log("已清空 JSON Diff。");
   }
@@ -1180,6 +1329,7 @@
     els.aesFeatureBtn.addEventListener("click", () => setActiveFeature("aes"));
     els.converterFeatureBtn.addEventListener("click", () => setActiveFeature("converter"));
     els.jsonDiffFeatureBtn.addEventListener("click", () => setActiveFeature("jsonDiff"));
+    els.logRestoreFeatureBtn.addEventListener("click", () => setActiveFeature("logRestore"));
     els.hashFeatureBtn.addEventListener("click", () => setActiveFeature("hash"));
     els.profileSelect.addEventListener("change", loadSelectedProfile);
     els.newProfileBtn.addEventListener("click", () => {
@@ -1304,13 +1454,31 @@
     els.jsonDiffRightInput.addEventListener("input", updateJsonDiffStats);
     els.runJsonDiffBtn.addEventListener("click", runJsonDiff);
     els.clearJsonDiffBtn.addEventListener("click", clearJsonDiff);
+    els.jsonDiffFilter.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-diff-filter]");
+      if (!button) return;
+      state.selectedJsonDiffFilter = button.dataset.diffFilter;
+      renderJsonDiffResults();
+    });
     els.copyJsonDiffBtn.addEventListener("click", async () => {
       if (!state.lastJsonDiffText) {
         log("尚無差異結果可複製。", true);
         return;
       }
       await copyTextToClipboard(state.lastJsonDiffText, els.jsonDiffLeftOutput);
-      log("已複製差異結果到剪貼簿。");
+      log("已複製完整差異結果到剪貼簿。");
+    });
+
+    els.logRestoreInput.addEventListener("input", updateLogRestoreStats);
+    els.runLogRestoreBtn.addEventListener("click", runLogRestore);
+    els.clearLogRestoreBtn.addEventListener("click", clearLogRestore);
+    els.copyLogRestoreBtn.addEventListener("click", async () => {
+      if (!state.lastLogRestoreText) {
+        log("尚無 Log 整理結果可複製。", true);
+        return;
+      }
+      await copyTextToClipboard(state.lastLogRestoreText, els.logRestoreOutput);
+      log("已複製 Log 整理結果到剪貼簿。");
     });
 
     els.hashAlgorithm.addEventListener("change", updateHashMode);
@@ -1345,6 +1513,7 @@
     updateInputStats();
     updateConverterStats();
     updateJsonDiffStats();
+    updateLogRestoreStats();
     updateHashStats();
     updateHashMode();
   }

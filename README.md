@@ -16,8 +16,9 @@
 - 支援匯入 / 匯出 profiles JSON
 - 內建小工具區，支援 UTF-8 / Base64 / Hex 即時互轉
 - JSON Diff 比對工具，可先做 JSON 美化排序，再比對欄位差異與欄位值差異
+- Log 整理 / 還原工具，可在本機整理 JSON、escaped JSON、query string、key=value 與 headers
 - Hash / HMAC 計算工具，支援 SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
-- 左側功能選單可切換 AES 加解密、文字編碼轉換、JSON Diff 與 Hash / HMAC
+- 左側功能選單可切換 AES 加解密、文字編碼轉換、JSON Diff、Log 整理與 Hash / HMAC
 
 ## 使用方式
 
@@ -33,6 +34,8 @@
 
 左側功能選單可切換到其他小工具：
 
+共用的格式化、編碼、JSON 與複製輔助函式集中在 `shared-utils.js`，各工具主流程保留在 `app.js`。
+
 ### 文字編碼轉換
 
 - 在 UTF-8、Base64 或 Hex 任一欄輸入內容，其他兩欄會即時更新
@@ -43,7 +46,13 @@
 
 - 左右貼入兩份 JSON 後按「比對」
 - 預設啟用「JSON 美化排序」，object key 會穩定排序，array 會維持原順序
-- 差異會分成「欄位差異」與「欄位值差異」，並顯示 JSON Path、左右值與型別
+- 差異會分成「欄位差異」、「欄位值差異」與「型別差異」，摘要保留完整統計，列表可依分類篩看
+
+### Log 整理 / 還原
+
+- 可整理標準 JSON、escaped JSON、JSON 字串內包 JSON、query string、key=value 與 HTTP headers
+- Nested JSON 字串只會在看起來高度像 JSON 且 parse 成功時展開，最多展開 3 層
+- 無法安全辨識的內容會保留原文，不會強行結構化或做根因分析
 
 ### Hash / HMAC
 
