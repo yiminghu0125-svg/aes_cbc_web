@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.0.2";
+  const APP_VERSION = "V1.0.4";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const LARGE_TEXT_BYTES = 2 * 1024 * 1024;

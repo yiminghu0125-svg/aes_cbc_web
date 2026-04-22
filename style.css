@@ -64,7 +64,7 @@ button.danger { color: var(--danger); }
 
 .hero {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 24px;
   align-items: end;
   margin-bottom: 24px;
@@ -113,8 +113,8 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
 .lead { max-width: 650px; margin: 18px 0 0; color: var(--muted); font-size: 1.08rem; }
 
 .hero-card {
-  width: 310px;
-  min-width: 310px;
+  width: 360px;
+  min-width: 360px;
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -122,12 +122,23 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow);
 }
-.hero-card strong, .hero-card small { display: block; }
-.hero-card small { color: var(--muted); margin-top: 6px; }
+.hero-card strong, .hero-card small {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+}
+.hero-card strong {
+  min-height: 1.35em;
+}
+.hero-card small {
+  min-height: 1.35em;
+  color: var(--muted);
+  margin-top: 6px;
+}
 .status-dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: #3ba66f; box-shadow: 0 0 0 7px rgba(59, 166, 111, 0.15); }
 .cipher-toggle {
   display: flex;
-  width: 156px;
+  width: 176px;
   margin: 0 0 14px;
   padding: 4px;
   border: 1px solid var(--line);
