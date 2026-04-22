@@ -15,8 +15,8 @@
 - Profiles 儲存在使用者本機瀏覽器 `localStorage`
 - 支援匯入 / 匯出 profiles JSON
 - 內建小工具區，支援 UTF-8 / Base64 / Hex 即時互轉
-- JSON Diff 實戰模式，可先做 JSON 美化排序，再比對欄位差異與欄位值差異
-- Hash / HMAC 驗證模式，支援 SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
+- JSON Diff 比對工具，可先做 JSON 美化排序，再比對欄位差異與欄位值差異
+- Hash / HMAC 計算工具，支援 SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
 - 左側功能選單可切換 AES 加解密、文字編碼轉換、JSON Diff 與 Hash / HMAC
 
 ## 使用方式

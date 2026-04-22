@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.4.0";
+  const APP_VERSION = "V1.4.1";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const fatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
@@ -114,8 +114,8 @@
     const labels = {
       aes: "AES 加解密工具",
       converter: "文字編碼轉換工具",
-      jsonDiff: "JSON Diff 實戰模式",
-      hash: "Hash / HMAC 驗證模式"
+      jsonDiff: "JSON Diff 比對工具",
+      hash: "Hash / HMAC 計算工具"
     };
     const views = {
       aes: els.aesView,

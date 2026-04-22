@@ -13,6 +13,7 @@
   --radius: 26px;
   --feature-menu-width: 148px;
   --feature-title-inset: 22px;
+  --feature-head-min-height: 118px;
   --font-zh: "Iansui", "芫荽", "Noto Serif TC", "Source Han Serif TC", Georgia, serif;
   --font-ui: "Iansui", "芫荽", "Segoe UI", sans-serif;
 }
@@ -140,12 +141,12 @@ button.danger { color: var(--danger); }
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 420px;
   gap: 24px;
   align-items: start;
+  min-height: var(--feature-head-min-height);
   padding-left: var(--feature-title-inset);
   margin-bottom: 16px;
-  animation: rise 500ms ease both;
 }
 
 .eyebrow {
@@ -195,9 +196,17 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
 .lead { max-width: 650px; margin: 10px 0 0; color: var(--muted); font-size: 1.02rem; }
 
 .hero-card {
-  width: 360px;
-  min-width: 360px;
-  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: 156px minmax(0, 1fr);
+  grid-template-areas:
+    "toggle title"
+    "toggle subtitle";
+  column-gap: 14px;
+  align-items: center;
+  width: 420px;
+  min-width: 420px;
+  min-height: 72px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(255, 252, 241, 0.64);
@@ -210,19 +219,22 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
   white-space: nowrap;
 }
 .hero-card strong {
-  min-height: 1.35em;
+  grid-area: title;
+  min-height: 1.24em;
 }
 .hero-card small {
-  min-height: 1.35em;
+  grid-area: subtitle;
+  min-height: 1.24em;
   color: var(--muted);
-  margin-top: 6px;
+  margin-top: 2px;
 }
 .status-dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: #3ba66f; box-shadow: 0 0 0 7px rgba(59, 166, 111, 0.15); }
 .cipher-toggle {
+  grid-area: toggle;
   display: flex;
-  width: 176px;
-  margin: 0 0 10px;
-  padding: 4px;
+  width: 156px;
+  margin: 0;
+  padding: 3px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.44);
@@ -230,7 +242,7 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
 .cipher-toggle button {
   flex: 1 0 0;
   min-width: 0;
-  padding: 0.46rem 0.78rem;
+  padding: 0.42rem 0.68rem;
   color: var(--muted);
   background: transparent;
   box-shadow: none;
@@ -265,7 +277,6 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
   background: var(--card);
   box-shadow: var(--shadow);
   backdrop-filter: blur(20px);
-  animation: rise 540ms ease both;
 }
 
 .result-panel { grid-column: 1 / -1; min-height: 290px; }
@@ -499,10 +510,11 @@ textarea {
 .toolbox-head {
   display: flex;
   gap: 14px;
-  align-items: end;
+  align-items: start;
   justify-content: space-between;
+  min-height: var(--feature-head-min-height);
   padding-left: var(--feature-title-inset);
-  margin: 0 0 14px;
+  margin: 0 0 16px;
 }
 
 .tool-tabs {
