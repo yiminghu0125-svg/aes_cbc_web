@@ -9,6 +9,7 @@
 
   const state = {
     mode: "E",
+    cipherMode: "CBC",
     profiles: [],
     lastOutputName: ".enc.txt",
     lastOutputText: "",
@@ -30,6 +31,10 @@
     importProfilesBtn: $("importProfilesBtn"),
     exportProfilesBtn: $("exportProfilesBtn"),
     profilesFile: $("profilesFile"),
+    cbcMode: $("cbcMode"),
+    gcmMode: $("gcmMode"),
+    cipherTitle: $("cipherTitle"),
+    cipherSubtitle: $("cipherSubtitle"),
     encryptMode: $("encryptMode"),
     decryptMode: $("decryptMode"),
     dropzone: $("dropzone"),
@@ -114,6 +119,29 @@
     return bytes;
   }
 
+  function hexToBytes(value, expectedLength, label) {
+    const normalized = String(value || "").replace(/\s+/g, "");
+    if (!new RegExp(`^[0-9a-fA-F]{${expectedLength * 2}}$`).test(normalized)) {
+      throw new Error(`${label} 格式錯誤：GCM ${label} 需為 ${expectedLength} bytes，也就是 ${expectedLength * 2} 個 hex 字元。`);
+    }
+    const bytes = new Uint8Array(expectedLength);
+    for (let i = 0; i < expectedLength; i++) {
+      bytes[i] = parseInt(normalized.slice(i * 2, i * 2 + 2), 16);
+    }
+    return bytes;
+  }
+
+  function concatBytes(...parts) {
+    const total = parts.reduce((sum, part) => sum + part.length, 0);
+    const output = new Uint8Array(total);
+    let offset = 0;
+    for (const part of parts) {
+      output.set(part, offset);
+      offset += part.length;
+    }
+    return output;
+  }
+
   function safeBase64ToBytes(value) {
     try { return base64ToBytes(value); } catch (_) { return null; }
   }
@@ -144,6 +172,10 @@
     return crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, ["encrypt", "decrypt"]);
   }
 
+  async function importGcmKey(keyBytes) {
+    return crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  }
+
   async function encryptText(plain, keyBytes, ivBytes) {
     if (!plain) throw new Error("明文為空：沒有可加密的資料。");
     const key = await importAesKey(keyBytes);
@@ -156,6 +188,34 @@
     const key = await importAesKey(keyBytes);
     const cipherBytes = base64ToBytes(cipherBase64);
     const decrypted = await crypto.subtle.decrypt({ name: "AES-CBC", iv: ivBytes }, key, cipherBytes);
+    return decoder.decode(new Uint8Array(decrypted));
+  }
+
+  async function encryptGcmText(plain, keyBytes, ivBytes) {
+    if (!plain) throw new Error("明文為空：沒有可加密的資料。");
+    const key = await importGcmKey(keyBytes);
+    const encryptedWithTag = new Uint8Array(await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: ivBytes, tagLength: 128 },
+      key,
+      encoder.encode(plain)
+    ));
+    return bytesToBase64(concatBytes(encryptedWithTag, ivBytes));
+  }
+
+  async function decryptGcmText(cipherBase64, keyBytes) {
+    if (!String(cipherBase64 || "").trim()) throw new Error("密文為空：沒有可解密的資料。");
+    const packed = base64ToBytes(cipherBase64);
+    if (packed.length <= 28) {
+      throw new Error("GCM 密文長度不足：需包含 ciphertext + 16 bytes tag + 12 bytes IV。");
+    }
+    const ivBytes = packed.slice(packed.length - 12);
+    const encryptedWithTag = packed.slice(0, packed.length - 12);
+    const key = await importGcmKey(keyBytes);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: ivBytes, tagLength: 128 },
+      key,
+      encryptedWithTag
+    );
     return decoder.decode(new Uint8Array(decrypted));
   }
 
@@ -193,6 +253,48 @@
     } catch (_) {
       return { text, formatted: false };
     }
+  }
+
+  function stringifyGcmBody(value) {
+    return JSON.stringify(value).replace(/":/g, '": ');
+  }
+
+  function tryParseJsonObject(text) {
+    try {
+      const parsed = JSON.parse(text);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function resolveGcmParams(requireIv) {
+    const keyBytes = hexToBytes(els.keyInput.value, 32, "Key");
+    const ivBytes = requireIv ? hexToBytes(els.ivInput.value, 12, "IV") : null;
+    return { keyBytes, ivBytes };
+  }
+
+  async function encryptGcmContent(content) {
+    const { keyBytes, ivBytes } = resolveGcmParams(true);
+    const parsed = tryParseJsonObject(content);
+    if (parsed && Object.prototype.hasOwnProperty.call(parsed, "Body")) {
+      const bodyPlain = typeof parsed.Body === "string" ? parsed.Body : stringifyGcmBody(parsed.Body);
+      parsed.Body = await encryptGcmText(bodyPlain, keyBytes, ivBytes);
+      return JSON.stringify(parsed, null, 2);
+    }
+    return encryptGcmText(content, keyBytes, ivBytes);
+  }
+
+  async function decryptGcmContent(content) {
+    const { keyBytes } = resolveGcmParams(false);
+    const parsed = tryParseJsonObject(content);
+    if (parsed && typeof parsed.Body === "string") {
+      const bodyPlain = await decryptGcmText(parsed.Body, keyBytes);
+      const bodyJson = tryParseJsonObject(bodyPlain);
+      parsed.Body = bodyJson || bodyPlain;
+      return JSON.stringify(parsed, null, 2);
+    }
+    return decryptGcmText(content, keyBytes);
   }
 
   function showOutput(output) {
@@ -343,6 +445,24 @@
     state.lastOutputName = isEncrypt ? ".enc.txt" : ".dec.txt";
   }
 
+  function setCipherMode(mode) {
+    state.cipherMode = mode;
+    const isGcm = mode === "GCM";
+    els.cbcMode.classList.toggle("active", !isGcm);
+    els.gcmMode.classList.toggle("active", isGcm);
+    els.cipherTitle.textContent = isGcm ? "AES-256-GCM" : "AES-256-CBC";
+    els.cipherSubtitle.textContent = isGcm ? "NoPadding / IV12 / Tag16 / Base64" : "PKCS7 / UTF-8 / Base64";
+    els.keyInput.placeholder = isGcm
+      ? "64 個 hex 字元，例如 32 bytes AES-256 key"
+      : "UTF-8 32 bytes 或 Base64 解碼後 32 bytes";
+    els.ivInput.placeholder = isGcm
+      ? "24 個 hex 字元，例如 12 bytes GCM IV"
+      : "UTF-8 16 bytes 或 Base64 解碼後 16 bytes";
+    log(isGcm
+      ? "已切換到 GCM：Key/IV 請使用 hex；若輸入完整 JSON，會加解密 Body 欄位。"
+      : "已切換到 CBC：沿用原本 Key/IV 與整段文字加解密流程。");
+  }
+
   function downloadText(filename, text, withBom) {
     const parts = withBom ? [new Uint8Array([0xef, 0xbb, 0xbf]), text] : [text];
     const blob = new Blob(parts, { type: "text/plain;charset=utf-8" });
@@ -363,9 +483,21 @@
       if (!confirmLargeText(inputBytes, "即將處理的")) return;
       els.runBtn.disabled = true;
       els.runBtn.textContent = state.mode === "E" ? "加密中..." : "解密中...";
-      const pair = await resolveKeyIvForMode(state.mode, content);
+      const pair = state.cipherMode === "CBC" ? await resolveKeyIvForMode(state.mode, content) : null;
       let output;
-      if (state.mode === "E") {
+      if (state.cipherMode === "GCM") {
+        if (state.mode === "E") {
+          state.lastRawDecryptedText = "";
+          output = await encryptGcmContent(content);
+          state.lastOutputName = ".gcm.enc.txt";
+        } else {
+          output = await decryptGcmContent(content);
+          state.lastRawDecryptedText = output;
+          const jsonResult = formatJsonIfEnabled(output);
+          output = jsonResult.text;
+          state.lastOutputName = jsonResult.formatted ? ".gcm.dec.pretty.json.txt" : ".gcm.dec.txt";
+        }
+      } else if (state.mode === "E") {
         state.lastRawDecryptedText = "";
         output = await encryptText(content, pair.key.bytes, pair.iv.bytes);
         state.lastOutputName = ".enc.txt";
@@ -376,8 +508,11 @@
         state.lastOutputName = jsonResult.formatted ? ".dec.pretty.json.txt" : ".dec.txt";
       }
       const outputBytes = showOutput(output);
-      const jsonNote = state.lastOutputName === ".dec.pretty.json.txt" ? "已套用 JSON 美化排序。" : "";
-      log(`完成。Key 來源：${pair.key.source}，IV 來源：${pair.iv.source}。輸出約 ${formatBytes(outputBytes)}。${jsonNote}`);
+      const jsonNote = state.lastOutputName.includes("pretty.json") ? "已套用 JSON 美化排序。" : "";
+      const sourceNote = state.cipherMode === "GCM"
+        ? "GCM Key 來源：Hex，IV 來源：Hex/密文內含。"
+        : `Key 來源：${pair.key.source}，IV 來源：${pair.iv.source}。`;
+      log(`完成。${sourceNote}輸出約 ${formatBytes(outputBytes)}。${jsonNote}`);
     } catch (error) {
       log(error.message || String(error), true);
     } finally {
@@ -441,6 +576,8 @@
       log("已匯出 profiles JSON。請妥善保管，裡面包含 Key/IV。");
     });
 
+    els.cbcMode.addEventListener("click", () => setCipherMode("CBC"));
+    els.gcmMode.addEventListener("click", () => setCipherMode("GCM"));
     els.encryptMode.addEventListener("click", () => setMode("E"));
     els.decryptMode.addEventListener("click", () => setMode("D"));
     els.textFile.addEventListener("change", async () => {
@@ -503,6 +640,7 @@
     loadProfiles();
     renderProfiles();
     setMode("E");
+    setCipherMode("CBC");
     updateInputStats();
   }
 

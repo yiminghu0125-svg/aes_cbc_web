@@ -98,6 +98,24 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
 .hero-card strong, .hero-card small { display: block; }
 .hero-card small { color: var(--muted); margin-top: 6px; }
 .status-dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: #3ba66f; box-shadow: 0 0 0 7px rgba(59, 166, 111, 0.15); }
+.cipher-toggle {
+  display: inline-flex;
+  margin: 0 0 14px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.44);
+}
+.cipher-toggle button {
+  padding: 0.46rem 0.78rem;
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+}
+.cipher-toggle button.active {
+  color: #fffdf5;
+  background: var(--accent-2);
+}
 
 .notice, .log {
   border: 1px solid rgba(168, 48, 40, 0.24);

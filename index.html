@@ -15,9 +15,13 @@
         <p class="lead">資料、Key、IV 都只在你的瀏覽器本機處理；不需要伺服器，也不會上傳。</p>
       </div>
       <div class="hero-card">
+        <div class="cipher-toggle" role="group" aria-label="AES mode">
+          <button class="active" id="cbcMode" type="button">CBC</button>
+          <button id="gcmMode" type="button">GCM</button>
+        </div>
         <span class="status-dot"></span>
-        <strong>AES-256-CBC</strong>
-        <small>PKCS7 / UTF-8 / Base64</small>
+        <strong id="cipherTitle">AES-256-CBC</strong>
+        <small id="cipherSubtitle">PKCS7 / UTF-8 / Base64</small>
       </div>
     </section>
 
