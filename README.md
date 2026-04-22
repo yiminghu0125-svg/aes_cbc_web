@@ -15,7 +15,9 @@
 - Profiles 儲存在使用者本機瀏覽器 `localStorage`
 - 支援匯入 / 匯出 profiles JSON
 - 內建小工具區，支援 UTF-8 / Base64 / Hex 即時互轉
-- 左側功能選單可切換 AES 加解密與文字編碼轉換
+- JSON Diff 實戰模式，可先做 JSON 美化排序，再比對欄位差異與欄位值差異
+- Hash / HMAC 驗證模式，支援 SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
+- 左側功能選單可切換 AES 加解密、文字編碼轉換、JSON Diff 與 Hash / HMAC
 
 ## 使用方式
 
@@ -29,11 +31,25 @@
 
 ## 小工具
 
-左側功能選單可切換到「文字編碼轉換」：
+左側功能選單可切換到其他小工具：
+
+### 文字編碼轉換
 
 - 在 UTF-8、Base64 或 Hex 任一欄輸入內容，其他兩欄會即時更新
 - Base64 欄支援一般 Base64，也可接受 URL-safe 字元 `-`、`_`
 - Hex 欄可包含空白或換行，但有效 hex 字元數必須是偶數
+
+### JSON Diff
+
+- 左右貼入兩份 JSON 後按「比對」
+- 預設啟用「JSON 美化排序」，object key 會穩定排序，array 會維持原順序
+- 差異會分成「欄位差異」與「欄位值差異」，並顯示 JSON Path、左右值與型別
+
+### Hash / HMAC
+
+- 可計算 SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
+- 原文與 HMAC key 均以 UTF-8 處理
+- 輸出 Hex 與 Base64，並可貼上預期值做一致性驗證
 
 後續若要增加其他小工具，可以延伸同一個工具區，不需要改動 AES 加解密主流程。
 

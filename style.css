@@ -354,7 +354,7 @@ textarea {
     inline-size: 100%;
     min-inline-size: 0;
     max-inline-size: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     top: 8px;
   }
   .feature-menu button {
@@ -540,6 +540,104 @@ textarea {
   min-height: 190px;
 }
 
+.json-diff-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.json-diff-grid textarea {
+  min-height: 230px;
+}
+
+.diff-summary {
+  min-height: 52px;
+  padding: 14px 16px;
+  border: 1px solid rgba(14, 117, 107, 0.22);
+  border-radius: 18px;
+  color: var(--ink);
+  background: rgba(14, 117, 107, 0.07);
+  font-family: var(--font-ui);
+  font-weight: 800;
+  white-space: pre-wrap;
+}
+
+.diff-summary.match {
+  border-color: rgba(14, 117, 107, 0.34);
+  color: var(--accent-2);
+}
+
+.diff-summary.mismatch {
+  border-color: rgba(168, 48, 40, 0.3);
+  color: var(--danger);
+  background: rgba(255, 239, 224, 0.78);
+}
+
+.diff-list {
+  display: grid;
+  gap: 12px;
+}
+
+.diff-item {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.diff-item-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.diff-item-meta strong {
+  color: var(--accent-2);
+  font-family: var(--font-ui);
+}
+
+.diff-item-meta code {
+  max-width: 100%;
+  padding: 0.28rem 0.48rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.5);
+  overflow-wrap: anywhere;
+}
+
+.diff-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.diff-values pre {
+  min-height: 70px;
+  max-height: 230px;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.48);
+  font-family: Consolas, "Cascadia Mono", monospace;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hash-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
 @media (max-width: 620px) {
   .result-tools {
     width: 100%;
@@ -558,7 +656,10 @@ textarea {
 }
 
 @media (max-width: 920px) {
-  .converter-grid {
+  .converter-grid,
+  .json-diff-grid,
+  .diff-values,
+  .hash-grid {
     grid-template-columns: 1fr;
   }
 }

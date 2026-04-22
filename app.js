@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.3.0";
+  const APP_VERSION = "V1.4.0";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const fatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
@@ -18,7 +18,10 @@
     lastRawDecryptedText: "",
     lastGcmSources: null,
     converterSyncing: false,
-    converterLastSource: "utf8"
+    converterLastSource: "utf8",
+    lastJsonDiffText: "",
+    lastHashText: "",
+    hashLastOutput: "hex"
   };
 
   const $ = (id) => document.getElementById(id);
@@ -26,8 +29,12 @@
     appVersion: $("appVersion"),
     aesFeatureBtn: $("aesFeatureBtn"),
     converterFeatureBtn: $("converterFeatureBtn"),
+    jsonDiffFeatureBtn: $("jsonDiffFeatureBtn"),
+    hashFeatureBtn: $("hashFeatureBtn"),
     aesView: $("aesView"),
     converterView: $("converterView"),
+    jsonDiffView: $("jsonDiffView"),
+    hashView: $("hashView"),
     cryptoNotice: $("cryptoNotice"),
     profileSelect: $("profileSelect"),
     profileName: $("profileName"),
@@ -67,6 +74,32 @@
     utf8Stats: $("utf8Stats"),
     base64Stats: $("base64Stats"),
     hexStats: $("hexStats"),
+    jsonDiffFormat: $("jsonDiffFormat"),
+    runJsonDiffBtn: $("runJsonDiffBtn"),
+    copyJsonDiffBtn: $("copyJsonDiffBtn"),
+    clearJsonDiffBtn: $("clearJsonDiffBtn"),
+    jsonDiffLeftInput: $("jsonDiffLeftInput"),
+    jsonDiffRightInput: $("jsonDiffRightInput"),
+    jsonDiffLeftStats: $("jsonDiffLeftStats"),
+    jsonDiffRightStats: $("jsonDiffRightStats"),
+    jsonDiffLeftOutput: $("jsonDiffLeftOutput"),
+    jsonDiffRightOutput: $("jsonDiffRightOutput"),
+    jsonDiffSummary: $("jsonDiffSummary"),
+    jsonDiffList: $("jsonDiffList"),
+    hashAlgorithm: $("hashAlgorithm"),
+    hmacKeyField: $("hmacKeyField"),
+    hmacKeyInput: $("hmacKeyInput"),
+    hashInputText: $("hashInputText"),
+    hashInputStats: $("hashInputStats"),
+    hashHexOutput: $("hashHexOutput"),
+    hashBase64Output: $("hashBase64Output"),
+    hashExpectedInput: $("hashExpectedInput"),
+    hashVerifyFormat: $("hashVerifyFormat"),
+    hashVerifyResult: $("hashVerifyResult"),
+    runHashBtn: $("runHashBtn"),
+    verifyHashBtn: $("verifyHashBtn"),
+    copyHashBtn: $("copyHashBtn"),
+    clearHashBtn: $("clearHashBtn"),
     copyConverterBtn: $("copyConverterBtn"),
     clearConverterBtn: $("clearConverterBtn"),
     messageLog: $("messageLog")
@@ -78,17 +111,33 @@
   }
 
   function setActiveFeature(feature, silent) {
-    const isConverter = feature === "converter";
-    els.aesView.hidden = isConverter;
-    els.converterView.hidden = !isConverter;
-    els.aesView.classList.toggle("active", !isConverter);
-    els.converterView.classList.toggle("active", isConverter);
-    els.aesFeatureBtn.classList.toggle("active", !isConverter);
-    els.converterFeatureBtn.classList.toggle("active", isConverter);
-    els.aesFeatureBtn.toggleAttribute("aria-current", !isConverter);
-    els.converterFeatureBtn.toggleAttribute("aria-current", isConverter);
+    const labels = {
+      aes: "AES 加解密工具",
+      converter: "文字編碼轉換工具",
+      jsonDiff: "JSON Diff 實戰模式",
+      hash: "Hash / HMAC 驗證模式"
+    };
+    const views = {
+      aes: els.aesView,
+      converter: els.converterView,
+      jsonDiff: els.jsonDiffView,
+      hash: els.hashView
+    };
+    const buttons = {
+      aes: els.aesFeatureBtn,
+      converter: els.converterFeatureBtn,
+      jsonDiff: els.jsonDiffFeatureBtn,
+      hash: els.hashFeatureBtn
+    };
+    Object.keys(views).forEach((name) => {
+      const active = name === feature;
+      views[name].hidden = !active;
+      views[name].classList.toggle("active", active);
+      buttons[name].classList.toggle("active", active);
+      buttons[name].toggleAttribute("aria-current", active);
+    });
     if (!silent) {
-      log(isConverter ? "已切換到文字編碼轉換工具。" : "已切換到 AES 加解密工具。");
+      log(`已切換到${labels[feature] || labels.aes}。`);
     }
   }
 
@@ -116,6 +165,24 @@
     els.utf8Stats.classList.toggle("warn", utf8Bytes >= LARGE_TEXT_BYTES);
     els.base64Stats.textContent = `${(els.base64Text.value || "").length.toLocaleString()} 字元`;
     els.hexStats.textContent = `${(els.hexText.value || "").replace(/\s+/g, "").length.toLocaleString()} hex 字元`;
+  }
+
+  function updateJsonDiffStats() {
+    const left = els.jsonDiffLeftInput.value || "";
+    const right = els.jsonDiffRightInput.value || "";
+    const leftBytes = getTextByteLength(left);
+    const rightBytes = getTextByteLength(right);
+    els.jsonDiffLeftStats.textContent = `${left.length.toLocaleString()} 字元 / 約 ${formatBytes(leftBytes)}`;
+    els.jsonDiffRightStats.textContent = `${right.length.toLocaleString()} 字元 / 約 ${formatBytes(rightBytes)}`;
+    els.jsonDiffLeftStats.classList.toggle("warn", leftBytes >= LARGE_TEXT_BYTES);
+    els.jsonDiffRightStats.classList.toggle("warn", rightBytes >= LARGE_TEXT_BYTES);
+  }
+
+  function updateHashStats() {
+    const text = els.hashInputText.value || "";
+    const bytes = getTextByteLength(text);
+    els.hashInputStats.textContent = `${text.length.toLocaleString()} 字元 / 約 ${formatBytes(bytes)}`;
+    els.hashInputStats.classList.toggle("warn", bytes >= LARGE_TEXT_BYTES);
   }
 
   function confirmLargeText(bytes, action) {
@@ -334,15 +401,166 @@
     return score;
   }
 
-  function sortJsonValue(value) {
-    if (Array.isArray(value)) return value.map(sortJsonValue);
+  function normalizeJsonValue(value) {
+    if (Array.isArray(value)) return value.map(normalizeJsonValue);
     if (value && typeof value === "object") {
       return Object.keys(value).sort((a, b) => a.localeCompare(b, "zh-Hant")).reduce((sorted, key) => {
-        sorted[key] = sortJsonValue(value[key]);
+        sorted[key] = normalizeJsonValue(value[key]);
         return sorted;
       }, {});
     }
     return value;
+  }
+
+  function sortJsonValue(value) {
+    return normalizeJsonValue(value);
+  }
+
+  function parseJsonInput(text, label) {
+    const raw = String(text || "");
+    if (!raw.trim()) throw new Error(`${label} JSON 格式錯誤：內容為空。`);
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      throw new Error(`${label} JSON 格式錯誤：${error.message || String(error)}`);
+    }
+  }
+
+  function prettyPrintJson(value, sortKeys) {
+    return JSON.stringify(sortKeys ? normalizeJsonValue(value) : value, null, 2);
+  }
+
+  function getJsonType(value) {
+    if (value === null) return "null";
+    if (Array.isArray(value)) return "array";
+    return typeof value;
+  }
+
+  function formatJsonPath(path) {
+    if (!path.length) return "data";
+    return path.reduce((output, segment) => {
+      if (typeof segment === "number") return `${output}[${segment}]`;
+      return `${output}.${segment}`;
+    }, "data");
+  }
+
+  function stringifyDiffValue(value) {
+    if (value === undefined) return "(不存在)";
+    if (typeof value === "string") return JSON.stringify(value);
+    return JSON.stringify(value, null, 2);
+  }
+
+  function isSamePrimitive(left, right) {
+    return Object.is(left, right);
+  }
+
+  function deepDiffJson(left, right, path) {
+    const diffs = [];
+    const currentPath = path || [];
+    const leftType = getJsonType(left);
+    const rightType = getJsonType(right);
+
+    if (leftType !== rightType) {
+      diffs.push({
+        type: "type_changed",
+        category: "欄位值差異",
+        label: "型別不同",
+        path: formatJsonPath(currentPath),
+        leftValue: left,
+        rightValue: right,
+        leftType,
+        rightType
+      });
+      return diffs;
+    }
+
+    if (leftType === "object") {
+      const leftKeys = Object.keys(left).sort((a, b) => a.localeCompare(b, "zh-Hant"));
+      const rightKeys = Object.keys(right).sort((a, b) => a.localeCompare(b, "zh-Hant"));
+      const rightKeySet = new Set(rightKeys);
+      const leftKeySet = new Set(leftKeys);
+
+      leftKeys.forEach((key) => {
+        if (!rightKeySet.has(key)) {
+          diffs.push({
+            type: "field_missing",
+            category: "欄位差異",
+            label: "缺少欄位",
+            path: formatJsonPath(currentPath.concat(key)),
+            leftValue: left[key],
+            rightValue: undefined,
+            leftType: getJsonType(left[key]),
+            rightType: "missing"
+          });
+        } else {
+          diffs.push(...deepDiffJson(left[key], right[key], currentPath.concat(key)));
+        }
+      });
+
+      rightKeys.forEach((key) => {
+        if (!leftKeySet.has(key)) {
+          diffs.push({
+            type: "field_extra",
+            category: "欄位差異",
+            label: "新增欄位",
+            path: formatJsonPath(currentPath.concat(key)),
+            leftValue: undefined,
+            rightValue: right[key],
+            leftType: "missing",
+            rightType: getJsonType(right[key])
+          });
+        }
+      });
+      return diffs;
+    }
+
+    if (leftType === "array") {
+      const maxLength = Math.max(left.length, right.length);
+      for (let index = 0; index < maxLength; index++) {
+        const existsLeft = index < left.length;
+        const existsRight = index < right.length;
+        if (!existsRight) {
+          diffs.push({
+            type: "field_missing",
+            category: "欄位差異",
+            label: "缺少欄位",
+            path: formatJsonPath(currentPath.concat(index)),
+            leftValue: left[index],
+            rightValue: undefined,
+            leftType: getJsonType(left[index]),
+            rightType: "missing"
+          });
+        } else if (!existsLeft) {
+          diffs.push({
+            type: "field_extra",
+            category: "欄位差異",
+            label: "新增欄位",
+            path: formatJsonPath(currentPath.concat(index)),
+            leftValue: undefined,
+            rightValue: right[index],
+            leftType: "missing",
+            rightType: getJsonType(right[index])
+          });
+        } else {
+          diffs.push(...deepDiffJson(left[index], right[index], currentPath.concat(index)));
+        }
+      }
+      return diffs;
+    }
+
+    if (!isSamePrimitive(left, right)) {
+      diffs.push({
+        type: "value_changed",
+        category: "欄位值差異",
+        label: "值不同",
+        path: formatJsonPath(currentPath),
+        leftValue: left,
+        rightValue: right,
+        leftType,
+        rightType
+      });
+    }
+    return diffs;
   }
 
   function formatJsonIfEnabled(text) {
@@ -503,6 +721,236 @@
       document.execCommand("copy");
     }
     log("已複製目前轉換欄位到剪貼簿。");
+  }
+
+  async function copyTextToClipboard(text, fallbackElement) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      if (fallbackElement) {
+        fallbackElement.focus();
+        fallbackElement.select();
+      }
+      document.execCommand("copy");
+    }
+  }
+
+  function diffToPlainText(diffs) {
+    const fieldDiffs = diffs.filter((diff) => diff.category === "欄位差異").length;
+    const valueDiffs = diffs.filter((diff) => diff.category === "欄位值差異").length;
+    if (!diffs.length) return "兩份 JSON 在排序正規化後內容一致";
+    return [
+      `欄位差異：共 ${fieldDiffs} 筆`,
+      `欄位值差異：共 ${valueDiffs} 筆`,
+      "",
+      ...diffs.map((diff, index) => [
+        `#${index + 1} ${diff.category} / ${diff.label}`,
+        `JSON Path: ${diff.path}`,
+        `左側值: ${stringifyDiffValue(diff.leftValue)}`,
+        `右側值: ${stringifyDiffValue(diff.rightValue)}`,
+        `型別: ${diff.leftType} vs ${diff.rightType}`
+      ].join("\n"))
+    ].join("\n\n");
+  }
+
+  function renderJsonDiffList(diffs) {
+    els.jsonDiffList.innerHTML = "";
+    if (!diffs.length) return;
+    diffs.forEach((diff) => {
+      const item = document.createElement("article");
+      item.className = "diff-item";
+
+      const meta = document.createElement("div");
+      meta.className = "diff-item-meta";
+
+      const badge = document.createElement("strong");
+      badge.textContent = `${diff.category} / ${diff.label}`;
+      meta.appendChild(badge);
+
+      const path = document.createElement("code");
+      path.textContent = diff.path;
+      meta.appendChild(path);
+
+      const values = document.createElement("div");
+      values.className = "diff-values";
+
+      const left = document.createElement("pre");
+      left.textContent = `左側值\n${stringifyDiffValue(diff.leftValue)}`;
+      values.appendChild(left);
+
+      const right = document.createElement("pre");
+      right.textContent = `右側值\n${stringifyDiffValue(diff.rightValue)}`;
+      values.appendChild(right);
+
+      const types = document.createElement("small");
+      types.className = "text-stats";
+      types.textContent = `型別：${diff.leftType} vs ${diff.rightType}`;
+
+      item.appendChild(meta);
+      item.appendChild(values);
+      item.appendChild(types);
+      els.jsonDiffList.appendChild(item);
+    });
+  }
+
+  function runJsonDiff() {
+    const leftBytes = getTextByteLength(els.jsonDiffLeftInput.value);
+    const rightBytes = getTextByteLength(els.jsonDiffRightInput.value);
+    if (!confirmLargeText(leftBytes + rightBytes, "即將比對的")) return;
+
+    els.jsonDiffLeftOutput.value = "";
+    els.jsonDiffRightOutput.value = "";
+    els.jsonDiffSummary.textContent = "尚未比對。";
+    els.jsonDiffList.innerHTML = "";
+    state.lastJsonDiffText = "";
+
+    const errors = [];
+    let leftParsed;
+    let rightParsed;
+    try {
+      leftParsed = parseJsonInput(els.jsonDiffLeftInput.value, "左側");
+    } catch (error) {
+      errors.push(error.message);
+    }
+    try {
+      rightParsed = parseJsonInput(els.jsonDiffRightInput.value, "右側");
+    } catch (error) {
+      errors.push(error.message);
+    }
+    if (errors.length) {
+      els.jsonDiffSummary.textContent = errors.join("\n");
+      log(errors.join("；"), true);
+      return;
+    }
+
+    const sortKeys = els.jsonDiffFormat.checked;
+    els.jsonDiffLeftOutput.value = prettyPrintJson(leftParsed, sortKeys);
+    els.jsonDiffRightOutput.value = prettyPrintJson(rightParsed, sortKeys);
+    const diffs = deepDiffJson(normalizeJsonValue(leftParsed), normalizeJsonValue(rightParsed));
+    const fieldDiffs = diffs.filter((diff) => diff.category === "欄位差異").length;
+    const valueDiffs = diffs.filter((diff) => diff.category === "欄位值差異").length;
+
+    if (!diffs.length) {
+      els.jsonDiffSummary.textContent = "兩份 JSON 在排序正規化後內容一致";
+      log("JSON Diff 完成：兩份 JSON 在排序正規化後內容一致。");
+    } else {
+      els.jsonDiffSummary.textContent = `欄位差異：共 ${fieldDiffs} 筆；欄位值差異：共 ${valueDiffs} 筆`;
+      log(`JSON Diff 完成：欄位差異 ${fieldDiffs} 筆，欄位值差異 ${valueDiffs} 筆。`);
+    }
+    renderJsonDiffList(diffs);
+    state.lastJsonDiffText = diffToPlainText(diffs);
+  }
+
+  function clearJsonDiff() {
+    els.jsonDiffLeftInput.value = "";
+    els.jsonDiffRightInput.value = "";
+    els.jsonDiffLeftOutput.value = "";
+    els.jsonDiffRightOutput.value = "";
+    els.jsonDiffSummary.textContent = "尚未比對。";
+    els.jsonDiffList.innerHTML = "";
+    state.lastJsonDiffText = "";
+    updateJsonDiffStats();
+    log("已清空 JSON Diff。");
+  }
+
+  function isHmacAlgorithm(algorithm) {
+    return algorithm.startsWith("HMAC-");
+  }
+
+  function getHashName(algorithm) {
+    if (algorithm === "HMAC-SHA256") return "SHA-256";
+    if (algorithm === "HMAC-SHA512") return "SHA-512";
+    return algorithm;
+  }
+
+  async function computeHashResult() {
+    const algorithm = els.hashAlgorithm.value;
+    const input = els.hashInputText.value;
+    const inputBytes = getTextByteLength(input);
+    if (!input) throw new Error("原文為空：沒有可計算的資料。");
+    if (!confirmLargeText(inputBytes, "即將計算的")) return null;
+
+    let digest;
+    if (isHmacAlgorithm(algorithm)) {
+      const keyText = els.hmacKeyInput.value;
+      if (!keyText) throw new Error("HMAC Key 為空：請輸入 Key 後再計算。");
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(keyText),
+        { name: "HMAC", hash: getHashName(algorithm) },
+        false,
+        ["sign"]
+      );
+      digest = await crypto.subtle.sign("HMAC", key, encoder.encode(input));
+    } else {
+      digest = await crypto.subtle.digest(algorithm, encoder.encode(input));
+    }
+
+    const bytes = new Uint8Array(digest);
+    return {
+      algorithm,
+      hex: bytesToHex(bytes),
+      base64: bytesToBase64(bytes)
+    };
+  }
+
+  async function runHash() {
+    try {
+      const result = await computeHashResult();
+      if (!result) return;
+      els.hashHexOutput.value = result.hex;
+      els.hashBase64Output.value = result.base64;
+      state.lastHashText = `演算法：${result.algorithm}\nHex：${result.hex}\nBase64：${result.base64}`;
+      els.hashVerifyResult.textContent = "尚未驗證。";
+      log(`${result.algorithm} 計算完成。`);
+    } catch (error) {
+      log(error.message || String(error), true);
+    }
+  }
+
+  async function verifyHash() {
+    try {
+      if (!els.hashHexOutput.value || !els.hashBase64Output.value) {
+        const result = await computeHashResult();
+        if (!result) return;
+        els.hashHexOutput.value = result.hex;
+        els.hashBase64Output.value = result.base64;
+        state.lastHashText = `演算法：${result.algorithm}\nHex：${result.hex}\nBase64：${result.base64}`;
+      }
+      const format = els.hashVerifyFormat.value;
+      const expected = String(els.hashExpectedInput.value || "").trim();
+      if (!expected) throw new Error("預期簽章為空：請貼上要比對的 Hex 或 Base64。");
+      const actual = format === "hex" ? els.hashHexOutput.value.trim().toLowerCase() : els.hashBase64Output.value.trim();
+      const normalizedExpected = format === "hex" ? expected.replace(/\s+/g, "").toLowerCase() : normalizeBase64(expected);
+      const matched = actual === normalizedExpected;
+      els.hashVerifyResult.textContent = `${format === "hex" ? "用 Hex 驗證" : "用 Base64 驗證"}：${matched ? "一致" : "不一致"}`;
+      els.hashVerifyResult.classList.toggle("match", matched);
+      els.hashVerifyResult.classList.toggle("mismatch", !matched);
+      log(`驗證結果：${matched ? "一致" : "不一致"}。`);
+    } catch (error) {
+      log(error.message || String(error), true);
+    }
+  }
+
+  function updateHashMode() {
+    const needsKey = isHmacAlgorithm(els.hashAlgorithm.value);
+    els.hmacKeyField.hidden = !needsKey;
+    els.hmacKeyInput.disabled = !needsKey;
+    els.hashVerifyResult.textContent = "尚未驗證。";
+    els.hashVerifyResult.classList.remove("match", "mismatch");
+  }
+
+  function clearHash() {
+    els.hashInputText.value = "";
+    els.hmacKeyInput.value = "";
+    els.hashHexOutput.value = "";
+    els.hashBase64Output.value = "";
+    els.hashExpectedInput.value = "";
+    els.hashVerifyResult.textContent = "尚未驗證。";
+    els.hashVerifyResult.classList.remove("match", "mismatch");
+    state.lastHashText = "";
+    updateHashStats();
+    log("已清空 Hash / HMAC。");
   }
 
   async function resolveKeyIvForMode(mode, content) {
@@ -731,6 +1179,8 @@
   function bindEvents() {
     els.aesFeatureBtn.addEventListener("click", () => setActiveFeature("aes"));
     els.converterFeatureBtn.addEventListener("click", () => setActiveFeature("converter"));
+    els.jsonDiffFeatureBtn.addEventListener("click", () => setActiveFeature("jsonDiff"));
+    els.hashFeatureBtn.addEventListener("click", () => setActiveFeature("hash"));
     els.profileSelect.addEventListener("change", loadSelectedProfile);
     els.newProfileBtn.addEventListener("click", () => {
       els.profileDetails.open = true;
@@ -849,6 +1299,36 @@
     els.hexText.addEventListener("focus", () => { state.converterLastSource = "hex"; });
     els.copyConverterBtn.addEventListener("click", copyActiveConverterValue);
     els.clearConverterBtn.addEventListener("click", clearConverter);
+
+    els.jsonDiffLeftInput.addEventListener("input", updateJsonDiffStats);
+    els.jsonDiffRightInput.addEventListener("input", updateJsonDiffStats);
+    els.runJsonDiffBtn.addEventListener("click", runJsonDiff);
+    els.clearJsonDiffBtn.addEventListener("click", clearJsonDiff);
+    els.copyJsonDiffBtn.addEventListener("click", async () => {
+      if (!state.lastJsonDiffText) {
+        log("尚無差異結果可複製。", true);
+        return;
+      }
+      await copyTextToClipboard(state.lastJsonDiffText, els.jsonDiffLeftOutput);
+      log("已複製差異結果到剪貼簿。");
+    });
+
+    els.hashAlgorithm.addEventListener("change", updateHashMode);
+    els.hashInputText.addEventListener("input", updateHashStats);
+    els.runHashBtn.addEventListener("click", runHash);
+    els.verifyHashBtn.addEventListener("click", verifyHash);
+    els.clearHashBtn.addEventListener("click", clearHash);
+    els.hashHexOutput.addEventListener("focus", () => { state.hashLastOutput = "hex"; });
+    els.hashBase64Output.addEventListener("focus", () => { state.hashLastOutput = "base64"; });
+    els.copyHashBtn.addEventListener("click", async () => {
+      const target = state.hashLastOutput === "base64" ? els.hashBase64Output : els.hashHexOutput;
+      if (!target.value) {
+        log("尚無 Hash / HMAC 結果可複製。", true);
+        return;
+      }
+      await copyTextToClipboard(target.value, target);
+      log(`已複製 ${state.hashLastOutput === "base64" ? "Base64" : "Hex"} 結果到剪貼簿。`);
+    });
   }
 
   function init() {
@@ -864,12 +1344,10 @@
     setActiveFeature("aes", true);
     updateInputStats();
     updateConverterStats();
+    updateJsonDiffStats();
+    updateHashStats();
+    updateHashMode();
   }
 
   init();
 })();
-
-
-
-
-
