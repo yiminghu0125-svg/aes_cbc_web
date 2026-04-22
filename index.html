@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AES-256 網頁加解密工具</title>
-  <link rel="stylesheet" href="style.css?v=1.0.6">
+  <link rel="stylesheet" href="style.css?v=1.0.7">
 </head>
 <body>
   <main class="shell">
@@ -12,7 +12,7 @@
       <div>
         <div class="hero-meta">
           <p class="eyebrow">Local browser only</p>
-          <span class="version-badge" id="appVersion">Version V1.0.6</span>
+          <span class="version-badge" id="appVersion">Version V1.0.7</span>
         </div>
         <h1>AES-256 網頁加解密工具</h1>
         <p class="lead">資料、Key、IV 都只在你的瀏覽器本機處理；不需要伺服器，也不會上傳。</p>
@@ -30,6 +30,8 @@
     <section class="notice" id="cryptoNotice" hidden>
       這個瀏覽器環境無法使用 Web Crypto API。請改用新版 Chrome / Edge，或以 localhost 開啟本工具。
     </section>
+
+    <div class="log status-log" id="messageLog" aria-live="polite">準備好了。選擇或新增一組 Key/IV 後即可開始。</div>
 
     <section class="grid">
       <article class="panel profile-panel">
@@ -152,13 +154,11 @@
           <button id="downloadBtn" type="button" disabled>下載結果 TXT</button>
           <button class="ghost" id="clearOutputBtn" type="button">清空結果</button>
         </div>
-
-        <div class="log" id="messageLog" aria-live="polite">準備好了。選擇或新增一組 Key/IV 後即可開始。</div>
       </article>
     </section>
   </main>
 
-  <script src="app.js?v=1.0.6"></script>
+  <script src="app.js?v=1.0.7"></script>
 </body>
 </html>
 
