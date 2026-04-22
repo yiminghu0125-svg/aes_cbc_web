@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.0.0";
+  const APP_VERSION = "V1.0.1";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const LARGE_TEXT_BYTES = 2 * 1024 * 1024;
@@ -626,7 +626,7 @@
       }
     });
     els.exportProfilesBtn.addEventListener("click", () => {
-      const payload = JSON.stringify({ version: "aes_cbc_web V1.0.0", profiles: state.profiles }, null, 2);
+      const payload = JSON.stringify({ version: `aes_256_web ${APP_VERSION}`, profiles: state.profiles }, null, 2);
       downloadText("aes_profiles.json", payload, false);
       log("已匯出 profiles JSON。請妥善保管，裡面包含 Key/IV。");
     });
