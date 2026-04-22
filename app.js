@@ -440,6 +440,30 @@
     els.ivInput.value = profile.iv;
   }
 
+  function isValidCbcProfile(profile) {
+    return getKeyCandidates(profile.key).length && getIvCandidates(profile.iv).length;
+  }
+
+  function isValidGcmProfile(profile) {
+    return getGcmKeyCandidates(profile.key).length && getGcmIvCandidates(profile.iv).length;
+  }
+
+  function validateProfileForSave(profile) {
+    const cbcValid = isValidCbcProfile(profile);
+    const gcmValid = isValidGcmProfile(profile);
+    if (state.cipherMode === "GCM" && gcmValid) return;
+    if (state.cipherMode === "CBC" && cbcValid) return;
+    if (gcmValid) {
+      setCipherMode("GCM");
+      return;
+    }
+    if (cbcValid) {
+      setCipherMode("CBC");
+      return;
+    }
+    throw new Error("Key / IV 格式錯誤，尚未儲存。CBC IV 需 16 bytes；GCM IV 需 12 bytes。");
+  }
+
   function saveCurrentProfile() {
     const profile = {
       name: els.profileName.value.trim() || "未命名設定",
@@ -447,13 +471,7 @@
       iv: els.ivInput.value
     };
 
-    if (state.cipherMode === "GCM") {
-      if (!getGcmKeyCandidates(profile.key).length) throw new Error("Key 格式錯誤：GCM Key 需為 UTF-8 32 bytes、Base64 解碼後 32 bytes，或 64 個 hex 字元。");
-      if (!getGcmIvCandidates(profile.iv).length) throw new Error("IV 格式錯誤：GCM IV 需為 UTF-8 12 bytes、Base64 解碼後 12 bytes，或 24 個 hex 字元。");
-    } else {
-      if (!getKeyCandidates(profile.key).length) throw new Error("Key 格式錯誤，尚未儲存。");
-      if (!getIvCandidates(profile.iv).length) throw new Error("IV 格式錯誤，尚未儲存。");
-    }
+    validateProfileForSave(profile);
 
     const selectedValue = els.profileSelect.value;
     const selected = Number(selectedValue);
