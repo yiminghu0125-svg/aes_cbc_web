@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AES-256 網頁加解密工具</title>
-  <link rel="stylesheet" href="style.css?v=1.0.8">
+  <link rel="stylesheet" href="style.css?v=1.1.0">
 </head>
 <body>
   <main class="shell">
@@ -12,7 +12,7 @@
       <div>
         <div class="hero-meta">
           <p class="eyebrow">Local browser only</p>
-          <span class="version-badge" id="appVersion">Version V1.0.8</span>
+          <span class="version-badge" id="appVersion">Version V1.1.0</span>
         </div>
         <h1>AES-256 網頁加解密工具</h1>
         <p class="lead">資料、Key、IV 都只在你的瀏覽器本機處理；不需要伺服器，也不會上傳。</p>
@@ -106,10 +106,6 @@
             <p class="eyebrow">Step 2</p>
             <h2>輸入資料</h2>
           </div>
-          <div class="mode-toggle" role="group" aria-label="模式">
-            <button class="active" id="encryptMode" type="button">加密</button>
-            <button id="decryptMode" type="button">解密</button>
-          </div>
         </div>
 
         <label class="dropzone" id="dropzone" for="textFile">
@@ -119,13 +115,14 @@
         </label>
 
         <label class="field grow">
-          <span id="inputLabel">明文</span>
-          <textarea id="inputText" spellcheck="false" placeholder="貼上要加密的文字，或上傳 / 拖曳 .txt"></textarea>
+          <span id="inputLabel">輸入內容</span>
+          <textarea id="inputText" spellcheck="false" placeholder="貼上要加密或解密的文字，或上傳 / 拖曳 .txt"></textarea>
           <small class="text-stats" id="inputStats">0 字元 / 約 0 KB</small>
         </label>
 
         <div class="run-row">
-          <button class="primary" id="runBtn" type="button">執行加密</button>
+          <button class="primary" id="encryptBtn" type="button">執行加密</button>
+          <button id="decryptBtn" type="button">執行解密</button>
           <button class="ghost" id="clearInputBtn" type="button">清空輸入</button>
         </div>
       </article>
@@ -146,7 +143,7 @@
         </div>
 
         <label class="field grow">
-          <span id="outputLabel">加密結果 Base64</span>
+          <span id="outputLabel">處理結果</span>
           <textarea id="outputText" spellcheck="false" readonly></textarea>
         </label>
 
@@ -158,7 +155,7 @@
     </section>
   </main>
 
-  <script src="app.js?v=1.0.8"></script>
+  <script src="app.js?v=1.1.0"></script>
 </body>
 </html>
 

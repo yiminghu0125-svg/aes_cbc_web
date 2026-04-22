@@ -230,16 +230,6 @@ textarea {
 .checkline { display: flex; align-items: center; gap: 8px; }
 .hint { margin: 0; color: var(--muted); line-height: 1.7; }
 
-.mode-toggle {
-  display: inline-flex;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255,255,255,0.42);
-}
-.mode-toggle button { box-shadow: none; background: transparent; color: var(--muted); }
-.mode-toggle button.active { background: var(--ink); color: #fffdf5; }
-
 .dropzone {
   display: grid;
   place-items: center;

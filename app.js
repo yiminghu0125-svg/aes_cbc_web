@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.0.8";
+  const APP_VERSION = "V1.1.0";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const LARGE_TEXT_BYTES = 2 * 1024 * 1024;
@@ -39,15 +39,14 @@
     gcmMode: $("gcmMode"),
     cipherTitle: $("cipherTitle"),
     cipherSubtitle: $("cipherSubtitle"),
-    encryptMode: $("encryptMode"),
-    decryptMode: $("decryptMode"),
     dropzone: $("dropzone"),
     textFile: $("textFile"),
     fileName: $("fileName"),
     inputLabel: $("inputLabel"),
     inputText: $("inputText"),
     inputStats: $("inputStats"),
-    runBtn: $("runBtn"),
+    encryptBtn: $("encryptBtn"),
+    decryptBtn: $("decryptBtn"),
     clearInputBtn: $("clearInputBtn"),
     outputLabel: $("outputLabel"),
     outputText: $("outputText"),
@@ -279,7 +278,7 @@
     }
   }
 
-  function stringifyGcmBody(value) {
+  function stringifyBody(value) {
     return JSON.stringify(value).replace(/":/g, '": ');
   }
 
@@ -311,7 +310,7 @@
     const { key, iv } = resolveGcmParams(true);
     const parsed = tryParseJsonObject(content);
     if (parsed && Object.prototype.hasOwnProperty.call(parsed, "Body")) {
-      const bodyPlain = typeof parsed.Body === "string" ? parsed.Body : stringifyGcmBody(parsed.Body);
+      const bodyPlain = typeof parsed.Body === "string" ? parsed.Body : stringifyBody(parsed.Body);
       parsed.Body = await encryptGcmText(bodyPlain, key.bytes, iv.bytes);
       return JSON.stringify(parsed, null, 2);
     }
@@ -328,6 +327,27 @@
       return JSON.stringify(parsed, null, 2);
     }
     return decryptGcmText(content, key.bytes);
+  }
+
+  async function encryptCbcContent(content, pair) {
+    const parsed = tryParseJsonObject(content);
+    if (parsed && Object.prototype.hasOwnProperty.call(parsed, "Body")) {
+      const bodyPlain = typeof parsed.Body === "string" ? parsed.Body : stringifyBody(parsed.Body);
+      parsed.Body = await encryptText(bodyPlain, pair.key.bytes, pair.iv.bytes);
+      return JSON.stringify(parsed, null, 2);
+    }
+    return encryptText(content, pair.key.bytes, pair.iv.bytes);
+  }
+
+  async function decryptCbcContent(content, pair) {
+    const parsed = tryParseJsonObject(content);
+    if (parsed && typeof parsed.Body === "string") {
+      const bodyPlain = await decryptText(parsed.Body, pair.key.bytes, pair.iv.bytes);
+      const bodyJson = tryParseJsonObject(bodyPlain);
+      parsed.Body = bodyJson || bodyPlain;
+      return JSON.stringify(parsed, null, 2);
+    }
+    return pair.plain;
   }
 
   function showOutput(output) {
@@ -356,6 +376,8 @@
     const ivCandidates = getIvCandidates(els.ivInput.value);
     if (!keyCandidates.length) throw new Error("Key 格式錯誤：AES-256 Key 需為 UTF-8 32 bytes，或 Base64 解碼後為 32 bytes。");
     if (!ivCandidates.length) throw new Error("IV 格式錯誤：需為 UTF-8 16 bytes，或 Base64 解碼後為 16 bytes。");
+    const parsedContent = mode === "D" ? tryParseJsonObject(content) : null;
+    const cipherContent = parsedContent && typeof parsedContent.Body === "string" ? parsedContent.Body : content;
 
     let best = null;
     for (const key of keyCandidates) {
@@ -363,7 +385,7 @@
         const pair = { key, iv, score: key.score + iv.score, plain: null };
         if (mode === "D") {
           try {
-            const plain = await decryptText(content, key.bytes, iv.bytes);
+            const plain = await decryptText(cipherContent, key.bytes, iv.bytes);
             pair.score += 1000 + scorePlainText(plain);
             pair.plain = plain;
           } catch (_) {
@@ -490,17 +512,6 @@
     log(`已儲存「${profile.name}」到本機瀏覽器。`);
   }
 
-  function setMode(mode) {
-    state.mode = mode;
-    const isEncrypt = mode === "E";
-    els.encryptMode.classList.toggle("active", isEncrypt);
-    els.decryptMode.classList.toggle("active", !isEncrypt);
-    els.inputLabel.textContent = isEncrypt ? "明文" : "密文 Base64";
-    els.outputLabel.textContent = isEncrypt ? "加密結果 Base64" : "解密結果";
-    els.runBtn.textContent = isEncrypt ? "執行加密" : "執行解密";
-    state.lastOutputName = isEncrypt ? ".enc.txt" : ".dec.txt";
-  }
-
   function setCipherMode(mode) {
     state.cipherMode = mode;
     const isGcm = mode === "GCM";
@@ -516,7 +527,7 @@
       : "UTF-8 16 bytes 或 Base64 解碼後 16 bytes";
     log(isGcm
       ? "已切換到 GCM：Key/IV 可使用 UTF-8、Base64 或 hex；若輸入完整 JSON，會加解密 Body 欄位。"
-      : "已切換到 CBC：沿用原本 Key/IV 與整段文字加解密流程。");
+      : "已切換到 CBC：若輸入完整 JSON，會加解密 Body 欄位。");
   }
 
   function downloadText(filename, text, withBom) {
@@ -532,17 +543,20 @@
     URL.revokeObjectURL(url);
   }
 
-  async function runCrypto() {
+  async function runCrypto(mode) {
     try {
+      state.mode = mode;
       const content = els.inputText.value;
       const inputBytes = getTextByteLength(content);
       if (!confirmLargeText(inputBytes, "即將處理的")) return;
-      els.runBtn.disabled = true;
-      els.runBtn.textContent = state.mode === "E" ? "加密中..." : "解密中...";
-      const pair = state.cipherMode === "CBC" ? await resolveKeyIvForMode(state.mode, content) : null;
+      const activeButton = mode === "E" ? els.encryptBtn : els.decryptBtn;
+      els.encryptBtn.disabled = true;
+      els.decryptBtn.disabled = true;
+      activeButton.textContent = mode === "E" ? "加密中..." : "解密中...";
+      const pair = state.cipherMode === "CBC" ? await resolveKeyIvForMode(mode, content) : null;
       let output;
       if (state.cipherMode === "GCM") {
-        if (state.mode === "E") {
+        if (mode === "E") {
           state.lastRawDecryptedText = "";
           output = await encryptGcmContent(content);
           state.lastOutputName = ".gcm.enc.txt";
@@ -553,13 +567,14 @@
           output = jsonResult.text;
           state.lastOutputName = jsonResult.formatted ? ".gcm.dec.pretty.json.txt" : ".gcm.dec.txt";
         }
-      } else if (state.mode === "E") {
+      } else if (mode === "E") {
         state.lastRawDecryptedText = "";
-        output = await encryptText(content, pair.key.bytes, pair.iv.bytes);
+        output = await encryptCbcContent(content, pair);
         state.lastOutputName = ".enc.txt";
       } else {
-        state.lastRawDecryptedText = pair.plain;
-        const jsonResult = formatJsonIfEnabled(pair.plain);
+        output = await decryptCbcContent(content, pair);
+        state.lastRawDecryptedText = output;
+        const jsonResult = formatJsonIfEnabled(output);
         output = jsonResult.text;
         state.lastOutputName = jsonResult.formatted ? ".dec.pretty.json.txt" : ".dec.txt";
       }
@@ -572,8 +587,10 @@
     } catch (error) {
       log(error.message || String(error), true);
     } finally {
-      els.runBtn.disabled = false;
-      els.runBtn.textContent = state.mode === "E" ? "執行加密" : "執行解密";
+      els.encryptBtn.disabled = false;
+      els.decryptBtn.disabled = false;
+      els.encryptBtn.textContent = "執行加密";
+      els.decryptBtn.textContent = "執行解密";
     }
   }
 
@@ -637,8 +654,6 @@
 
     els.cbcMode.addEventListener("click", () => setCipherMode("CBC"));
     els.gcmMode.addEventListener("click", () => setCipherMode("GCM"));
-    els.encryptMode.addEventListener("click", () => setMode("E"));
-    els.decryptMode.addEventListener("click", () => setMode("D"));
     els.textFile.addEventListener("change", async () => {
       await loadTextFile(els.textFile.files[0]);
     });
@@ -658,7 +673,8 @@
     });
     els.inputText.addEventListener("input", updateInputStats);
     els.formatJsonOutput.addEventListener("change", refreshJsonOutputFromRaw);
-    els.runBtn.addEventListener("click", runCrypto);
+    els.encryptBtn.addEventListener("click", () => runCrypto("E"));
+    els.decryptBtn.addEventListener("click", () => runCrypto("D"));
     els.clearInputBtn.addEventListener("click", () => {
       els.inputText.value = "";
       els.textFile.value = "";
@@ -699,7 +715,6 @@
     bindEvents();
     loadProfiles();
     renderProfiles();
-    setMode("E");
     setCipherMode("CBC");
     updateInputStats();
   }
