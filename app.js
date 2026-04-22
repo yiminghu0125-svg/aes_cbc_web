@@ -2,9 +2,10 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.1.0";
+  const APP_VERSION = "V1.3.0";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
+  const fatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
   const LARGE_TEXT_BYTES = 2 * 1024 * 1024;
   const VERY_LARGE_TEXT_BYTES = 10 * 1024 * 1024;
 
@@ -15,12 +16,18 @@
     lastOutputName: ".enc.txt",
     lastOutputText: "",
     lastRawDecryptedText: "",
-    lastGcmSources: null
+    lastGcmSources: null,
+    converterSyncing: false,
+    converterLastSource: "utf8"
   };
 
   const $ = (id) => document.getElementById(id);
   const els = {
     appVersion: $("appVersion"),
+    aesFeatureBtn: $("aesFeatureBtn"),
+    converterFeatureBtn: $("converterFeatureBtn"),
+    aesView: $("aesView"),
+    converterView: $("converterView"),
     cryptoNotice: $("cryptoNotice"),
     profileSelect: $("profileSelect"),
     profileName: $("profileName"),
@@ -54,12 +61,35 @@
     copyBtn: $("copyBtn"),
     downloadBtn: $("downloadBtn"),
     clearOutputBtn: $("clearOutputBtn"),
+    utf8Text: $("utf8Text"),
+    base64Text: $("base64Text"),
+    hexText: $("hexText"),
+    utf8Stats: $("utf8Stats"),
+    base64Stats: $("base64Stats"),
+    hexStats: $("hexStats"),
+    copyConverterBtn: $("copyConverterBtn"),
+    clearConverterBtn: $("clearConverterBtn"),
     messageLog: $("messageLog")
   };
 
   function log(message, isError) {
     els.messageLog.textContent = message;
     els.messageLog.style.color = isError ? "#a83028" : "#69746e";
+  }
+
+  function setActiveFeature(feature, silent) {
+    const isConverter = feature === "converter";
+    els.aesView.hidden = isConverter;
+    els.converterView.hidden = !isConverter;
+    els.aesView.classList.toggle("active", !isConverter);
+    els.converterView.classList.toggle("active", isConverter);
+    els.aesFeatureBtn.classList.toggle("active", !isConverter);
+    els.converterFeatureBtn.classList.toggle("active", isConverter);
+    els.aesFeatureBtn.toggleAttribute("aria-current", !isConverter);
+    els.converterFeatureBtn.toggleAttribute("aria-current", isConverter);
+    if (!silent) {
+      log(isConverter ? "已切換到文字編碼轉換工具。" : "已切換到 AES 加解密工具。");
+    }
   }
 
   function formatBytes(bytes) {
@@ -77,6 +107,15 @@
     const bytes = getTextByteLength(text);
     els.inputStats.textContent = `${text.length.toLocaleString()} 字元 / 約 ${formatBytes(bytes)}`;
     els.inputStats.classList.toggle("warn", bytes >= LARGE_TEXT_BYTES);
+  }
+
+  function updateConverterStats() {
+    const utf8 = els.utf8Text.value || "";
+    const utf8Bytes = getTextByteLength(utf8);
+    els.utf8Stats.textContent = `${utf8.length.toLocaleString()} 字元 / 約 ${formatBytes(utf8Bytes)}`;
+    els.utf8Stats.classList.toggle("warn", utf8Bytes >= LARGE_TEXT_BYTES);
+    els.base64Stats.textContent = `${(els.base64Text.value || "").length.toLocaleString()} 字元`;
+    els.hexStats.textContent = `${(els.hexText.value || "").replace(/\s+/g, "").length.toLocaleString()} hex 字元`;
   }
 
   function confirmLargeText(bytes, action) {
@@ -120,6 +159,50 @@
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return bytes;
+  }
+
+  function bytesToHex(bytes) {
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  function converterBase64ToBytes(value) {
+    let normalized = normalizeBase64(value).replace(/-/g, "+").replace(/_/g, "/");
+    if (!normalized) return new Uint8Array();
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
+      throw new Error("Base64 格式錯誤：只能包含 A-Z、a-z、0-9、+、/ 與結尾的 =。");
+    }
+    const remainder = normalized.length % 4;
+    if (remainder === 1) throw new Error("Base64 長度錯誤：請確認是否少貼了字元。");
+    if (remainder) normalized += "=".repeat(4 - remainder);
+    const binary = atob(normalized);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  function converterHexToBytes(value) {
+    const normalized = String(value || "").replace(/\s+/g, "");
+    if (!normalized) return new Uint8Array();
+    if (!/^[0-9a-fA-F]+$/.test(normalized)) {
+      throw new Error("Hex 格式錯誤：只能包含 0-9、a-f、A-F。");
+    }
+    if (normalized.length % 2 !== 0) {
+      throw new Error("Hex 長度必須是偶數，每 2 個 hex 字元代表 1 byte。");
+    }
+    const bytes = new Uint8Array(normalized.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(normalized.slice(i * 2, i * 2 + 2), 16);
+    }
+    return bytes;
+  }
+
+  function bytesToUtf8(bytes) {
+    if (!bytes.length) return "";
+    try {
+      return fatalUtf8Decoder.decode(bytes);
+    } catch (_) {
+      throw new Error("這組 bytes 不是有效的 UTF-8 文字，無法轉回 UTF-8 欄位。");
+    }
   }
 
   function hexToBytes(value, expectedLength, label) {
@@ -371,6 +454,57 @@
     log(`${jsonNote}輸出約 ${formatBytes(outputBytes)}。`);
   }
 
+  function getConverterBytes(source) {
+    if (source === "utf8") return encoder.encode(els.utf8Text.value || "");
+    if (source === "base64") return converterBase64ToBytes(els.base64Text.value);
+    return converterHexToBytes(els.hexText.value);
+  }
+
+  function syncConverterFrom(source) {
+    if (state.converterSyncing) return;
+    state.converterSyncing = true;
+    state.converterLastSource = source;
+    try {
+      const bytes = getConverterBytes(source);
+      if (source !== "utf8") els.utf8Text.value = bytesToUtf8(bytes);
+      if (source !== "base64") els.base64Text.value = bytesToBase64(bytes);
+      if (source !== "hex") els.hexText.value = bytesToHex(bytes);
+      updateConverterStats();
+      const label = source === "utf8" ? "UTF-8" : source === "base64" ? "Base64" : "Hex";
+      log(`已從 ${label} 更新其他格式。`);
+    } catch (error) {
+      updateConverterStats();
+      log(error.message || String(error), true);
+    } finally {
+      state.converterSyncing = false;
+    }
+  }
+
+  function clearConverter() {
+    els.utf8Text.value = "";
+    els.base64Text.value = "";
+    els.hexText.value = "";
+    updateConverterStats();
+    log("已清空文字編碼轉換工具。");
+  }
+
+  async function copyActiveConverterValue() {
+    const sourceMap = {
+      utf8: els.utf8Text,
+      base64: els.base64Text,
+      hex: els.hexText
+    };
+    const target = sourceMap[state.converterLastSource] || els.utf8Text;
+    try {
+      await navigator.clipboard.writeText(target.value);
+    } catch (_) {
+      target.focus();
+      target.select();
+      document.execCommand("copy");
+    }
+    log("已複製目前轉換欄位到剪貼簿。");
+  }
+
   async function resolveKeyIvForMode(mode, content) {
     const keyCandidates = getKeyCandidates(els.keyInput.value);
     const ivCandidates = getIvCandidates(els.ivInput.value);
@@ -595,6 +729,8 @@
   }
 
   function bindEvents() {
+    els.aesFeatureBtn.addEventListener("click", () => setActiveFeature("aes"));
+    els.converterFeatureBtn.addEventListener("click", () => setActiveFeature("converter"));
     els.profileSelect.addEventListener("change", loadSelectedProfile);
     els.newProfileBtn.addEventListener("click", () => {
       els.profileDetails.open = true;
@@ -704,6 +840,15 @@
       downloadText(state.lastOutputName, state.lastOutputText || els.outputText.value, state.mode === "D");
       log(`已下載 ${state.lastOutputName}。`);
     });
+
+    els.utf8Text.addEventListener("input", () => syncConverterFrom("utf8"));
+    els.utf8Text.addEventListener("focus", () => { state.converterLastSource = "utf8"; });
+    els.base64Text.addEventListener("input", () => syncConverterFrom("base64"));
+    els.base64Text.addEventListener("focus", () => { state.converterLastSource = "base64"; });
+    els.hexText.addEventListener("input", () => syncConverterFrom("hex"));
+    els.hexText.addEventListener("focus", () => { state.converterLastSource = "hex"; });
+    els.copyConverterBtn.addEventListener("click", copyActiveConverterValue);
+    els.clearConverterBtn.addEventListener("click", clearConverter);
   }
 
   function init() {
@@ -716,7 +861,9 @@
     loadProfiles();
     renderProfiles();
     setCipherMode("CBC");
+    setActiveFeature("aes", true);
     updateInputStats();
+    updateConverterStats();
   }
 
   init();
