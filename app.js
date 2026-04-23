@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.5.7";
+  const APP_VERSION = "V1.5.8";
   const PUBLIC_SITE_HOSTNAME = "yiminghu0125-svg.github.io";
   const PUBLIC_SITE_PATH_PREFIX = "/aes_cbc_web";
   const VISIT_COUNTER_NAMESPACE = "yiminghu0125-svg";
