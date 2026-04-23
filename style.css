@@ -195,6 +195,45 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
 }
 .lead { max-width: 650px; margin: 10px 0 0; color: var(--muted); font-size: 1.02rem; }
 
+.visit-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid rgba(14, 117, 107, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 252, 241, 0.82);
+  box-shadow: var(--shadow);
+}
+
+.visit-counter-label {
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.visit-counter-value {
+  font-size: clamp(0.92rem, 1.1vw, 1.02rem);
+  line-height: 1.1;
+}
+
+.visit-counter.is-error .visit-counter-value {
+  color: #a83028;
+}
+
+.visit-counter-floating {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 30;
+  width: auto;
+  max-width: calc(100vw - 24px);
+  backdrop-filter: blur(18px);
+  opacity: 0.96;
+}
+
 .hero-card {
   display: grid;
   grid-template-columns: 156px minmax(0, 1fr);

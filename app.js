@@ -3,6 +3,11 @@
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
   const APP_VERSION = "V1.5.7";
+  const PUBLIC_SITE_HOSTNAME = "yiminghu0125-svg.github.io";
+  const PUBLIC_SITE_PATH_PREFIX = "/aes_cbc_web";
+  const VISIT_COUNTER_NAMESPACE = "yiminghu0125-svg";
+  const VISIT_COUNTER_NAME = "aes_cbc_web-page-views";
+  const VISIT_COUNTER_BASE_URL = `https://api.counterapi.dev/v1/${VISIT_COUNTER_NAMESPACE}/${VISIT_COUNTER_NAME}`;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const fatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
@@ -50,6 +55,7 @@
   const $ = (id) => document.getElementById(id);
   const els = {
     appVersion: $("appVersion"),
+    siteVisitCount: $("siteVisitCount"),
     aesFeatureBtn: $("aesFeatureBtn"),
     converterFeatureBtn: $("converterFeatureBtn"),
     jsonDiffFeatureBtn: $("jsonDiffFeatureBtn"),
@@ -145,6 +151,44 @@
   function log(message, isError) {
     els.messageLog.textContent = message;
     els.messageLog.style.color = isError ? "#a83028" : "#69746e";
+  }
+
+  function setVisitCounterState(valueText, isError) {
+    if (!els.siteVisitCount) return;
+    const visitCounter = els.siteVisitCount.closest(".visit-counter");
+    els.siteVisitCount.textContent = valueText;
+    if (visitCounter) {
+      visitCounter.classList.toggle("is-error", Boolean(isError));
+    }
+  }
+
+  async function loadSiteVisitCount() {
+    if (!els.siteVisitCount) return;
+
+    const isPublicSite =
+      window.location.hostname === PUBLIC_SITE_HOSTNAME &&
+      window.location.pathname.startsWith(PUBLIC_SITE_PATH_PREFIX);
+    const endpoint = isPublicSite ? `${VISIT_COUNTER_BASE_URL}/up` : VISIT_COUNTER_BASE_URL;
+
+    setVisitCounterState("讀取中", false);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "GET",
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        throw new Error(`Counter API HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      if (typeof data.count !== "number" || !Number.isFinite(data.count)) {
+        throw new Error("Counter API response does not include a valid count.");
+      }
+      setVisitCounterState(`${data.count.toLocaleString()} 次`, false);
+    } catch (error) {
+      console.warn("Unable to load site visit count.", error);
+      setVisitCounterState("無法顯示", true);
+    }
   }
 
   function setActiveFeature(feature, silent) {
@@ -1643,6 +1687,7 @@
     updateLogRestoreStats();
     updateHashStats();
     updateHashMode();
+    loadSiteVisitCount();
   }
 
   init();

@@ -116,6 +116,14 @@ localStorage: aes_cbc_web_profiles_v1
 - 共用電腦使用完請按「清除本機保存」
 - 不要把 profiles JSON 放在公開位置
 
+## 流量統計
+
+對外公開網站版本可使用 Google Analytics 4 (GA4) 記錄頁面瀏覽量，用於估算網站被查看的人次。
+
+網站畫面上的「網站瀏覽次數」則使用 CounterAPI 公開計數器，會在公開 GitHub Pages 網址每次載入頁面時累加一次，方便直接在畫面上查看累積瀏覽次數。
+
+目前只加入頁面瀏覽統計，不會主動把使用者輸入的明文、密文、Key、IV 或 profiles 內容送到分析服務。
+
 ## 相容性
 
 本工具使用瀏覽器 Web Crypto API。建議使用新版 Chrome 或 Edge。
