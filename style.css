@@ -198,29 +198,12 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
 .visit-counter {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
-  border: 1px solid rgba(14, 117, 107, 0.18);
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid rgba(23, 32, 27, 0.11);
   border-radius: 999px;
-  background: rgba(255, 252, 241, 0.82);
-  box-shadow: var(--shadow);
-}
-
-.visit-counter-label {
-  color: var(--muted);
-  font-family: var(--font-ui);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-}
-
-.visit-counter-value {
-  font-size: clamp(0.92rem, 1.1vw, 1.02rem);
-  line-height: 1.1;
-}
-
-.visit-counter.is-error .visit-counter-value {
-  color: #a83028;
+  background: rgba(255, 252, 241, 0.9);
+  box-shadow: 0 10px 24px rgba(40, 48, 34, 0.12);
 }
 
 .visit-counter-floating {
@@ -230,8 +213,28 @@ h2 { font-size: 1.42rem; letter-spacing: -0.03em; }
   z-index: 30;
   width: auto;
   max-width: calc(100vw - 24px);
-  backdrop-filter: blur(18px);
   opacity: 0.96;
+}
+
+.visit-counter-label {
+  color: #7d6a55;
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.visit-counter-value {
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.visit-counter.is-error {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .hero-card {
