@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.5.2";
+  const APP_VERSION = "V1.5.7";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const fatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
@@ -664,6 +664,8 @@
     json: "JSON",
     escaped_json: "Escaped JSON",
     nested_json_string: "Nested JSON string",
+    log_embedded_json: "Log 內嵌 JSON",
+    java_log: "Java / Spring Log",
     query_string: "Query String",
     key_value: "key=value 類型",
     headers: "HTTP Header block",
@@ -689,9 +691,117 @@
     return String(input || "").replace(/\r\n/g, "\n").trim();
   }
 
+  function parseJavaLogLines(input) {
+    const rawLines = String(input || "").replace(/\r\n/g, "\n").split("\n").map((line) => line.trim()).filter(Boolean);
+    if (!rawLines.length) return null;
+    const entryStartPattern = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}\s+[A-Z]+\s+\[/;
+    const lines = [];
+    for (const line of rawLines) {
+      if (entryStartPattern.test(line)) {
+        lines.push(line);
+      } else if (lines.length) {
+        lines[lines.length - 1] = `${lines[lines.length - 1]} ${line}`;
+      } else {
+        return null;
+      }
+    }
+
+    const pattern = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})\s+([A-Z]+)\s+\[([^\]]+)\]\s+(.+?)\s+\(([^)]+)\)\s+-\s*(.*)$/;
+    const entries = [];
+    for (const line of lines) {
+      const match = line.match(pattern);
+      if (!match) return null;
+      entries.push({
+        time: match[1],
+        level: match[2],
+        thread: match[3],
+        logger: match[4],
+        source: match[5],
+        message: match[6]
+      });
+    }
+    return entries;
+  }
+
+  function formatJavaLogEntries(entries) {
+    return entries.map((entry, index) => [
+      `Entry ${index + 1}`,
+      `Time: ${entry.time}`,
+      `Level: ${entry.level}`,
+      `Thread: ${entry.thread}`,
+      `Logger: ${entry.logger}`,
+      `Source: ${entry.source}`,
+      `Message: ${entry.message || "(空訊息)"}`
+    ].join("\n")).join("\n\n");
+  }
+
+  function findEmbeddedJsonPayload(input) {
+    const text = String(input || "");
+    for (let start = 0; start < text.length; start++) {
+      const opener = text[start];
+      if (opener !== "{" && opener !== "[") continue;
+
+      const closer = opener === "{" ? "}" : "]";
+      const stack = [closer];
+      let inString = false;
+      let escaped = false;
+
+      for (let index = start + 1; index < text.length; index++) {
+        const char = text[index];
+        if (inString) {
+          if (escaped) {
+            escaped = false;
+          } else if (char === "\\") {
+            escaped = true;
+          } else if (char === "\"") {
+            inString = false;
+          }
+          continue;
+        }
+
+        if (char === "\"") {
+          inString = true;
+          continue;
+        }
+        if (char === "{" || char === "[") {
+          stack.push(char === "{" ? "}" : "]");
+          continue;
+        }
+        if (char === "}" || char === "]") {
+          if (char !== stack[stack.length - 1]) break;
+          stack.pop();
+          if (!stack.length) {
+            const jsonText = text.slice(start, index + 1);
+            const parsed = parseJsonSafely(jsonText);
+            if (parsed.ok && parsed.value && typeof parsed.value === "object") {
+              return {
+                prefix: text.slice(0, start).trim(),
+                jsonText,
+                value: parsed.value,
+                suffix: text.slice(index + 1).trim()
+              };
+            }
+            break;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   function formatStructuredOutput(result, sortKeys) {
     if (["json", "escaped_json", "nested_json_string"].includes(result.format)) {
       return prettyPrintJson(result.value, sortKeys);
+    }
+    if (result.format === "log_embedded_json") {
+      const lines = [];
+      if (result.prefix) lines.push(`Log text\n${formatPlainText(result.prefix)}`);
+      lines.push(`JSON payload\n${prettyPrintJson(result.value, sortKeys)}`);
+      if (result.suffix) lines.push(`Trailing text\n${formatPlainText(result.suffix)}`);
+      return lines.join("\n\n");
+    }
+    if (result.format === "java_log") {
+      return formatJavaLogEntries(result.entries);
     }
     if (["query_string", "key_value", "headers"].includes(result.format)) {
       const objectView = entriesToObject(result.entries);
@@ -740,7 +850,24 @@
       result.entries = parseHeaderBlock(trimmed);
       result.status = "已辨識為 Header block，已拆成結構化列表。";
     } else {
-      result.status = "未辨識為可結構化格式，以下為原始內容。";
+      const embedded = findEmbeddedJsonPayload(trimmed);
+      if (embedded) {
+        result.format = "log_embedded_json";
+        result.prefix = embedded.prefix;
+        result.suffix = embedded.suffix;
+        result.value = expandNestedJson(embedded.value, 0, 3, "payload", details);
+        result.status = "已辨識為 Log 內嵌 JSON，已保留 log 文字並格式化 JSON payload。";
+        if (details.some((detail) => detail.status === "expanded")) result.status += " 內嵌 JSON 字串也已展開。";
+      } else {
+        const javaLogEntries = parseJavaLogLines(trimmed);
+        if (javaLogEntries) {
+          result.format = "java_log";
+          result.entries = javaLogEntries;
+          result.status = `已辨識為 Java / Spring Log，已整理 ${javaLogEntries.length} 筆 log entries。`;
+        } else {
+          result.status = "未辨識為可結構化格式，以下為原始內容。";
+        }
+      }
     }
 
     result.output = formatStructuredOutput(result, sortKeys);
@@ -757,10 +884,12 @@
   function renderLogRestoreDetails(details) {
     els.logRestoreDetails.innerHTML = "";
     if (!details.length) {
-      els.logRestoreDetailsBlock.hidden = true;
+      const item = document.createElement("div");
+      item.className = "log-detail-item muted";
+      item.textContent = "沒有偵測到內嵌 JSON 字串，資料沒有可展開的分層。";
+      els.logRestoreDetails.appendChild(item);
       return;
     }
-    els.logRestoreDetailsBlock.hidden = false;
     details.forEach((detail) => {
       const item = document.createElement("div");
       item.className = "log-detail-item";
@@ -785,8 +914,8 @@
     els.logRestoreStatus.classList.remove("match", "mismatch");
     els.logRestoreStatus.classList.add(result.ok ? "match" : "mismatch");
     els.logRestoreStatus.textContent = result.status;
-    els.logRestoreOutput.textContent = result.output || "尚無結果。";
-    els.logRestoreOriginal.textContent = result.original || "尚無原始內容。";
+    els.logRestoreOutput.value = result.output || "尚無結果。";
+    els.logRestoreOriginal.value = result.original || "尚無原始內容。";
     renderLogRestoreDetails(result.details || []);
     state.lastLogRestoreText = result.output || "";
     log(result.ok ? `${result.status} 偵測類型：${LOG_FORMAT_LABELS[result.format]}。` : result.status, !result.ok);
@@ -796,10 +925,9 @@
     els.logRestoreInput.value = "";
     els.logRestoreStatus.classList.remove("match", "mismatch");
     els.logRestoreStatus.textContent = "尚未整理。";
-    els.logRestoreOutput.textContent = "尚無結果。";
-    els.logRestoreOriginal.textContent = "尚無原始內容。";
-    els.logRestoreDetails.innerHTML = "";
-    els.logRestoreDetailsBlock.hidden = true;
+    els.logRestoreOutput.value = "尚無結果。";
+    els.logRestoreOriginal.value = "尚無原始內容。";
+    renderLogRestoreDetails([]);
     state.lastLogRestoreText = "";
     updateLogRestoreStats();
     log("已清空 Log 整理 / 還原工具。");

@@ -578,20 +578,17 @@ textarea {
   min-width: 0;
 }
 
-.log-result-block pre {
-  min-height: 220px;
-  max-height: 460px;
-  margin: 0;
-  overflow: auto;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.46);
+.section-hint {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.log-result-block textarea {
+  min-height: 230px;
   font-family: Consolas, "Cascadia Mono", monospace;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  resize: vertical;
 }
 
 .log-restore-details {
@@ -608,6 +605,10 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.34);
+}
+
+.log-detail-item.muted {
+  color: var(--muted);
 }
 
 .log-detail-item code {

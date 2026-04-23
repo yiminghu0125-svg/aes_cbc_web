@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AES-256 網頁加解密工具</title>
-  <link rel="stylesheet" href="style.css?v=1.5.2">
+  <link rel="stylesheet" href="style.css?v=1.5.7">
 </head>
 <body>
   <main class="shell">
@@ -35,7 +35,7 @@
             <div>
               <div class="hero-meta">
                 <p class="eyebrow">Local browser only</p>
-                <span class="version-badge" id="appVersion">Version V1.5.2</span>
+                <span class="version-badge" id="appVersion">Version V1.5.7</span>
               </div>
               <h1 class="feature-title">AES-256 網頁加解密工具</h1>
               <p class="lead">資料、Key、IV 都只在你的瀏覽器本機處理；不需要伺服器，也不會上傳。</p>
@@ -181,7 +181,7 @@
             <div>
               <div class="hero-meta">
                 <p class="eyebrow">Local browser only</p>
-                <span class="version-badge">Version V1.5.2</span>
+                <span class="version-badge">Version V1.5.7</span>
               </div>
               <h2 class="feature-title" id="toolboxTitle">文字編碼轉換</h2>
               <p class="lead">在本機瀏覽器即時轉換 UTF-8、Base64、Hex 內容；輸入資料不會離開你的電腦。</p>
@@ -226,7 +226,7 @@
             <div>
               <div class="hero-meta">
                 <p class="eyebrow">Local browser only</p>
-                <span class="version-badge">Version V1.5.2</span>
+                <span class="version-badge">Version V1.5.7</span>
               </div>
               <h2 class="feature-title" id="jsonDiffTitle">JSON Diff 比對工具</h2>
               <p class="lead">在本機格式化、排序並比對兩份 JSON；差異結果只在你的瀏覽器中產生。</p>
@@ -295,10 +295,10 @@
             <div>
               <div class="hero-meta">
                 <p class="eyebrow">Local browser only</p>
-                <span class="version-badge">Version V1.5.2</span>
+                <span class="version-badge">Version V1.5.7</span>
               </div>
               <h2 class="feature-title" id="logRestoreTitle">Log 整理 / 還原工具</h2>
-              <p class="lead">還原可辨識的 JSON、escaped JSON、query string、key=value 與 headers；無法安全辨識時保留原文。</p>
+              <p class="lead">還原可辨識的 JSON、log 內嵌 JSON、Java / Spring log、escaped JSON、query string、key=value 與 headers；無法安全辨識時保留原文。</p>
             </div>
           </div>
 
@@ -331,18 +331,23 @@
             <div class="log-restore-grid">
               <section class="log-result-block">
                 <div class="section-title">整理後結果</div>
-                <pre id="logRestoreOutput">尚無結果。</pre>
+                <textarea id="logRestoreOutput" spellcheck="false" readonly>尚無結果。</textarea>
               </section>
 
               <section class="log-result-block">
                 <div class="section-title">原始內容</div>
-                <pre id="logRestoreOriginal">尚無原始內容。</pre>
+                <textarea id="logRestoreOriginal" spellcheck="false" readonly>尚無原始內容。</textarea>
               </section>
             </div>
 
-            <div class="log-result-block" id="logRestoreDetailsBlock" hidden>
-              <div class="section-title">展開層級</div>
-              <div class="log-restore-details" id="logRestoreDetails"></div>
+            <div class="log-result-block" id="logRestoreDetailsBlock">
+              <div>
+                <div class="section-title">展開層級</div>
+                <p class="section-hint">顯示內嵌 JSON 字串被展開的路徑；沒有內嵌資料時會提示沒有分層。</p>
+              </div>
+              <div class="log-restore-details" id="logRestoreDetails">
+                <div class="log-detail-item muted">尚未整理，貼上資料後會顯示是否有可展開的 JSON 分層。</div>
+              </div>
             </div>
           </article>
         </section>
@@ -352,7 +357,7 @@
             <div>
               <div class="hero-meta">
                 <p class="eyebrow">Local browser only</p>
-                <span class="version-badge">Version V1.5.2</span>
+                <span class="version-badge">Version V1.5.7</span>
               </div>
               <h2 class="feature-title" id="hashTitle">Hash / HMAC 計算工具</h2>
               <p class="lead">使用瀏覽器 Web Crypto 計算 Hash 或 HMAC；原文與 Key 都只在本機處理。</p>
@@ -431,8 +436,8 @@
     </div>
   </main>
 
-  <script src="shared-utils.js?v=1.5.2"></script>
-  <script src="app.js?v=1.5.2"></script>
+  <script src="shared-utils.js?v=1.5.7"></script>
+  <script src="app.js?v=1.5.7"></script>
 </body>
 </html>
 

@@ -17,7 +17,7 @@
 - AES 解密結果可做 JSON 美化，並保留原本欄位順序
 - 內建小工具區，支援 UTF-8 / Base64 / Hex 即時互轉
 - JSON Diff 比對工具，可先做 JSON 美化排序，再比對欄位差異與欄位值差異
-- Log 整理 / 還原工具，可在本機整理 JSON、escaped JSON、query string、key=value 與 headers
+- Log 整理 / 還原工具，可在本機整理 JSON、log 內嵌 JSON、Java / Spring log、escaped JSON、query string、key=value 與 headers
 - Hash / HMAC 計算工具，支援 SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
 - 左側功能選單可切換 AES 加解密、文字編碼轉換、JSON Diff、Log 整理與 Hash / HMAC
 
@@ -51,7 +51,9 @@
 
 ### Log 整理 / 還原
 
-- 可整理標準 JSON、escaped JSON、JSON 字串內包 JSON、query string、key=value 與 HTTP headers
+- 可整理標準 JSON、log 內嵌 JSON、Java / Spring log、escaped JSON、JSON 字串內包 JSON、query string、key=value 與 HTTP headers
+- 若一般 log 行尾或訊息中包含 JSON payload，會保留 log 文字並獨立格式化 JSON payload
+- 若貼上多行 Java / Spring log，會拆出時間、等級、thread、logger、source 與 message，並用空行分隔每筆 entry；單筆 log 被換行拆開時也會先合併判斷
 - Nested JSON 字串只會在看起來高度像 JSON 且 parse 成功時展開，最多展開 3 層
 - 無法安全辨識的內容會保留原文，不會強行結構化或做根因分析
 
