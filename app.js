@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.6.4";
+  const APP_VERSION = "V1.6.6";
   const VISIT_COUNTER_ENDPOINT = "https://hitscounter.dev/api/hit?output=json&url=https%3A%2F%2Fyiminghu0125-svg.github.io%2Faes_cbc_web%2F&tz=Asia%2FTaipei";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
@@ -51,6 +51,7 @@
   const $ = (id) => document.getElementById(id);
   const els = {
     appVersion: $("appVersion"),
+    featureMenu: $("featureMenu"),
     visitCounter: $("visitCounter"),
     siteVisitCount: $("siteVisitCount"),
     aesFeatureBtn: $("aesFeatureBtn"),
@@ -153,6 +154,19 @@
   function setVisitCounterText(text) {
     if (!els.siteVisitCount) return;
     els.siteVisitCount.textContent = text;
+  }
+
+  function syncVisitCounterAnchor() {
+    if (!els.visitCounter) return;
+    const fallbackLeft = 12;
+    if (!els.featureMenu) {
+      els.visitCounter.style.setProperty("--visit-counter-left", `${fallbackLeft}px`);
+      return;
+    }
+
+    const rect = els.featureMenu.getBoundingClientRect();
+    const left = Math.max(fallbackLeft, Math.round(rect.left));
+    els.visitCounter.style.setProperty("--visit-counter-left", `${left}px`);
   }
 
   function readFirstNumber(...values) {
@@ -1695,7 +1709,9 @@
     updateLogRestoreStats();
     updateHashStats();
     updateHashMode();
+    syncVisitCounterAnchor();
     loadSiteVisitCount();
+    window.addEventListener("resize", syncVisitCounterAnchor);
   }
 
   init();
