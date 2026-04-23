@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.5.1";
+  const APP_VERSION = "V1.5.2";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
   const fatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
@@ -16,7 +16,6 @@
     base64ToBytes,
     bytesToHex,
     normalizeJsonValue,
-    sortJsonValue,
     parseJsonInput,
     prettyPrintJson,
     parseJsonSafely,
@@ -511,7 +510,7 @@
     }
     try {
       const parsed = JSON.parse(trimmed);
-      return { text: JSON.stringify(sortJsonValue(parsed), null, 2), formatted: true };
+      return { text: JSON.stringify(parsed, null, 2), formatted: true };
     } catch (_) {
       return { text, formatted: false };
     }
@@ -606,7 +605,7 @@
     const jsonResult = formatJsonIfEnabled(state.lastRawDecryptedText);
     state.lastOutputName = jsonResult.formatted ? ".dec.pretty.json.txt" : ".dec.txt";
     const outputBytes = showOutput(jsonResult.text);
-    const jsonNote = jsonResult.formatted ? "已套用 JSON 美化排序。" : "已顯示原始解密結果。";
+    const jsonNote = jsonResult.formatted ? "已套用 JSON 美化。" : "已顯示原始解密結果。";
     log(`${jsonNote}輸出約 ${formatBytes(outputBytes)}。`);
   }
 
@@ -1310,7 +1309,7 @@
         state.lastOutputName = jsonResult.formatted ? ".dec.pretty.json.txt" : ".dec.txt";
       }
       const outputBytes = showOutput(output);
-      const jsonNote = state.lastOutputName.includes("pretty.json") ? "已套用 JSON 美化排序。" : "";
+      const jsonNote = state.lastOutputName.includes("pretty.json") ? "已套用 JSON 美化。" : "";
       const sourceNote = state.cipherMode === "GCM"
         ? `GCM Key 來源：${state.lastGcmSources.key}，IV 來源：${state.lastGcmSources.iv}。`
         : `Key 來源：${pair.key.source}，IV 來源：${pair.iv.source}。`;

@@ -14,6 +14,7 @@
 - 支援多組 Key / IV profiles
 - Profiles 儲存在使用者本機瀏覽器 `localStorage`
 - 支援匯入 / 匯出 profiles JSON
+- AES 解密結果可做 JSON 美化，並保留原本欄位順序
 - 內建小工具區，支援 UTF-8 / Base64 / Hex 即時互轉
 - JSON Diff 比對工具，可先做 JSON 美化排序，再比對欄位差異與欄位值差異
 - Log 整理 / 還原工具，可在本機整理 JSON、escaped JSON、query string、key=value 與 headers
