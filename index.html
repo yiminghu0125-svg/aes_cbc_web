@@ -369,21 +369,20 @@
             <div>
               <div class="hero-meta">
                 <p class="eyebrow">Local browser only</p>
-                <span class="version-badge">Version V1.6.6</span>
+                <span class="version-badge">Version V1.7.0</span>
               </div>
               <h2 class="feature-title" id="hashTitle">Hash / HMAC 計算工具</h2>
-              <p class="lead">使用瀏覽器 Web Crypto 計算 Hash 或 HMAC；原文與 Key 都只在本機處理。</p>
+              <p class="lead">使用瀏覽器在本機計算文字或檔案的 Hash / HMAC；原文、檔案與 Key 都只在本機處理。</p>
             </div>
           </div>
 
           <article class="panel utility-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">UTF-8 / Web Crypto</p>
+                <p class="eyebrow">UTF-8 / File / Web Crypto</p>
               </div>
               <div class="result-tools">
                 <button class="primary" id="runHashBtn" type="button">計算</button>
-                <button class="ghost" id="verifyHashBtn" type="button">驗證</button>
                 <button class="ghost" id="copyHashBtn" type="button">複製結果</button>
                 <button class="ghost" id="clearHashBtn" type="button">清空</button>
               </div>
@@ -393,6 +392,7 @@
               <label class="field">
                 <span>演算法</span>
                 <select id="hashAlgorithm">
+                  <option value="MD5">MD5</option>
                   <option value="SHA-256">SHA-256</option>
                   <option value="SHA-512">SHA-512</option>
                   <option value="HMAC-SHA256">HMAC-SHA256</option>
@@ -406,9 +406,15 @@
               </label>
             </div>
 
+            <label class="dropzone" id="hashDropzone" for="hashFile">
+              <input id="hashFile" type="file">
+              <span>上傳檔案</span>
+              <small id="hashFileName">或把檔案拖曳到這裡</small>
+            </label>
+
             <label class="field">
               <span>原文</span>
-              <textarea id="hashInputText" spellcheck="false" placeholder="貼上要計算摘要或簽章的文字"></textarea>
+              <textarea id="hashInputText" spellcheck="false" placeholder="貼上要計算摘要或簽章的文字；若已選擇檔案，計算時會優先使用檔案"></textarea>
               <small class="text-stats" id="hashInputStats">0 字元 / 約 0 B</small>
             </label>
 
@@ -423,24 +429,36 @@
                 <textarea id="hashBase64Output" spellcheck="false" readonly></textarea>
               </label>
 
-              <label class="field converter-field">
+            </div>
+
+            <div class="hash-verify-panel">
+              <label class="field hash-expected-field">
                 <span>預期簽章</span>
                 <textarea id="hashExpectedInput" spellcheck="false" placeholder="貼上 Hex 或 Base64 預期值"></textarea>
               </label>
-            </div>
 
-            <div class="hash-grid">
-              <label class="field">
-                <span>驗證格式</span>
-                <select id="hashVerifyFormat">
-                  <option value="hex">用 Hex 驗證</option>
-                  <option value="base64">用 Base64 驗證</option>
-                </select>
-              </label>
+              <div class="hash-verify-controls">
+                <label class="field">
+                  <span>驗證格式</span>
+                  <select id="hashVerifyFormat">
+                    <option value="hex">用 Hex 驗證</option>
+                    <option value="base64">用 Base64 驗證</option>
+                  </select>
+                </label>
+
+                <button class="ghost" id="verifyHashBtn" type="button">驗證</button>
+              </div>
 
               <section class="diff-summary" id="hashVerifyResult" aria-live="polite">
                 尚未驗證。
               </section>
+            </div>
+
+            <div class="hash-grid">
+              <label class="field">
+                <span>說明</span>
+                <p class="section-hint">先計算結果，再在上方貼上預期簽章做比對；驗證支援 Hex 與 Base64。</p>
+              </label>
             </div>
           </article>
         </section>
@@ -448,8 +466,8 @@
     </div>
   </main>
 
-  <script src="shared-utils.js?v=1.6.6"></script>
-  <script src="app.js?v=1.6.6"></script>
+  <script src="shared-utils.js?v=1.7.0"></script>
+  <script src="app.js?v=1.7.0"></script>
 </body>
 </html>
 

@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.6.6";
+  const APP_VERSION = "V1.7.0";
   const VISIT_COUNTER_ENDPOINT = "https://hitscounter.dev/api/hit?output=json&url=https%3A%2F%2Fyiminghu0125-svg.github.io%2Faes_cbc_web%2F&tz=Asia%2FTaipei";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
@@ -45,7 +45,8 @@
     jsonDiffHasCompared: false,
     lastLogRestoreText: "",
     lastHashText: "",
-    hashLastOutput: "hex"
+    hashLastOutput: "hex",
+    hashInputFile: null
   };
 
   const $ = (id) => document.getElementById(id);
@@ -130,6 +131,9 @@
     hashAlgorithm: $("hashAlgorithm"),
     hmacKeyField: $("hmacKeyField"),
     hmacKeyInput: $("hmacKeyInput"),
+    hashDropzone: $("hashDropzone"),
+    hashFile: $("hashFile"),
+    hashFileName: $("hashFileName"),
     hashInputText: $("hashInputText"),
     hashInputStats: $("hashInputStats"),
     hashHexOutput: $("hashHexOutput"),
@@ -145,6 +149,17 @@
     clearConverterBtn: $("clearConverterBtn"),
     messageLog: $("messageLog")
   };
+
+  const MD5_SHIFT_AMOUNTS = [
+    7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+    5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+    4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+    6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+  ];
+  const MD5_CONSTANTS = Array.from(
+    { length: 64 },
+    (_, index) => Math.floor(Math.abs(Math.sin(index + 1)) * 0x100000000) >>> 0
+  );
 
   function log(message, isError) {
     els.messageLog.textContent = message;
@@ -275,10 +290,31 @@
   }
 
   function updateHashStats() {
+    if (state.hashInputFile) {
+      const bytes = state.hashInputFile.size;
+      els.hashInputStats.textContent = `已選擇檔案：${state.hashInputFile.name} / ${formatBytes(bytes)}，計算時會優先使用檔案`;
+      els.hashInputStats.classList.toggle("warn", bytes >= LARGE_TEXT_BYTES);
+      return;
+    }
     const text = els.hashInputText.value || "";
     const bytes = getTextByteLength(text);
     els.hashInputStats.textContent = `${text.length.toLocaleString()} 字元 / 約 ${formatBytes(bytes)}`;
     els.hashInputStats.classList.toggle("warn", bytes >= LARGE_TEXT_BYTES);
+  }
+
+  function clearHashInputFile() {
+    state.hashInputFile = null;
+    els.hashFile.value = "";
+    els.hashFileName.textContent = "或把檔案拖曳到這裡";
+    updateHashStats();
+  }
+
+  async function loadHashFile(file) {
+    if (!file) return;
+    state.hashInputFile = file;
+    els.hashFileName.textContent = `${file.name} (${formatBytes(file.size)})`;
+    updateHashStats();
+    log(`已選擇 Hash 檔案：${file.name}，大小 ${formatBytes(file.size)}。`);
   }
 
   async function loadTextFile(file) {
@@ -1205,14 +1241,102 @@
     return algorithm;
   }
 
-  async function computeHashResult() {
-    const algorithm = els.hashAlgorithm.value;
+  function leftRotate32(value, bits) {
+    return ((value << bits) | (value >>> (32 - bits))) >>> 0;
+  }
+
+  function computeMd5(inputBytes) {
+    const originalLength = inputBytes.length;
+    const paddedLength = (((originalLength + 9) + 63) >> 6) << 6;
+    const padded = new Uint8Array(paddedLength);
+    padded.set(inputBytes);
+    padded[originalLength] = 0x80;
+
+    const bitLength = originalLength * 8;
+    const view = new DataView(padded.buffer);
+    view.setUint32(paddedLength - 8, bitLength >>> 0, true);
+    view.setUint32(paddedLength - 4, Math.floor(bitLength / 0x100000000) >>> 0, true);
+
+    let a0 = 0x67452301;
+    let b0 = 0xefcdab89;
+    let c0 = 0x98badcfe;
+    let d0 = 0x10325476;
+
+    for (let offset = 0; offset < paddedLength; offset += 64) {
+      const words = new Uint32Array(16);
+      for (let index = 0; index < 16; index++) {
+        words[index] = view.getUint32(offset + index * 4, true);
+      }
+
+      let a = a0;
+      let b = b0;
+      let c = c0;
+      let d = d0;
+
+      for (let index = 0; index < 64; index++) {
+        let f;
+        let g;
+
+        if (index < 16) {
+          f = (b & c) | (~b & d);
+          g = index;
+        } else if (index < 32) {
+          f = (d & b) | (~d & c);
+          g = (5 * index + 1) % 16;
+        } else if (index < 48) {
+          f = b ^ c ^ d;
+          g = (3 * index + 5) % 16;
+        } else {
+          f = c ^ (b | ~d);
+          g = (7 * index) % 16;
+        }
+
+        const nextD = d;
+        d = c;
+        c = b;
+        const sum = (a + f + MD5_CONSTANTS[index] + words[g]) >>> 0;
+        b = (b + leftRotate32(sum, MD5_SHIFT_AMOUNTS[index])) >>> 0;
+        a = nextD;
+      }
+
+      a0 = (a0 + a) >>> 0;
+      b0 = (b0 + b) >>> 0;
+      c0 = (c0 + c) >>> 0;
+      d0 = (d0 + d) >>> 0;
+    }
+
+    const digest = new Uint8Array(16);
+    const digestView = new DataView(digest.buffer);
+    digestView.setUint32(0, a0, true);
+    digestView.setUint32(4, b0, true);
+    digestView.setUint32(8, c0, true);
+    digestView.setUint32(12, d0, true);
+    return digest;
+  }
+
+  async function getHashInputPayload() {
+    if (state.hashInputFile) {
+      if (!confirmLargeText(state.hashInputFile.size, "即將計算的檔案")) return null;
+      const bytes = new Uint8Array(await state.hashInputFile.arrayBuffer());
+      return {
+        bytes,
+        sourceLabel: `檔案：${state.hashInputFile.name}`
+      };
+    }
+
     const input = els.hashInputText.value;
     const inputBytes = getTextByteLength(input);
     if (!input) throw new Error("原文為空：沒有可計算的資料。");
     if (!confirmLargeText(inputBytes, "即將計算的")) return null;
+    return {
+      bytes: encoder.encode(input),
+      sourceLabel: "文字"
+    };
+  }
 
-    let digest;
+  async function computeHashDigest(algorithm, inputBytes) {
+    if (algorithm === "MD5") return computeMd5(inputBytes);
+
     if (isHmacAlgorithm(algorithm)) {
       const keyText = els.hmacKeyInput.value;
       if (!keyText) throw new Error("HMAC Key 為空：請輸入 Key 後再計算。");
@@ -1223,14 +1347,20 @@
         false,
         ["sign"]
       );
-      digest = await crypto.subtle.sign("HMAC", key, encoder.encode(input));
-    } else {
-      digest = await crypto.subtle.digest(algorithm, encoder.encode(input));
+      return new Uint8Array(await crypto.subtle.sign("HMAC", key, inputBytes));
     }
 
-    const bytes = new Uint8Array(digest);
+    return new Uint8Array(await crypto.subtle.digest(algorithm, inputBytes));
+  }
+
+  async function computeHashResult() {
+    const algorithm = els.hashAlgorithm.value;
+    const payload = await getHashInputPayload();
+    if (!payload) return null;
+    const bytes = await computeHashDigest(algorithm, payload.bytes);
     return {
       algorithm,
+      sourceLabel: payload.sourceLabel,
       hex: bytesToHex(bytes),
       base64: bytesToBase64(bytes)
     };
@@ -1242,9 +1372,9 @@
       if (!result) return;
       els.hashHexOutput.value = result.hex;
       els.hashBase64Output.value = result.base64;
-      state.lastHashText = `演算法：${result.algorithm}\nHex：${result.hex}\nBase64：${result.base64}`;
+      state.lastHashText = `來源：${result.sourceLabel}\n演算法：${result.algorithm}\nHex：${result.hex}\nBase64：${result.base64}`;
       els.hashVerifyResult.textContent = "尚未驗證。";
-      log(`${result.algorithm} 計算完成。`);
+      log(`${result.algorithm} 計算完成（${result.sourceLabel}）。`);
     } catch (error) {
       log(error.message || String(error), true);
     }
@@ -1257,7 +1387,7 @@
         if (!result) return;
         els.hashHexOutput.value = result.hex;
         els.hashBase64Output.value = result.base64;
-        state.lastHashText = `演算法：${result.algorithm}\nHex：${result.hex}\nBase64：${result.base64}`;
+        state.lastHashText = `來源：${result.sourceLabel}\n演算法：${result.algorithm}\nHex：${result.hex}\nBase64：${result.base64}`;
       }
       const format = els.hashVerifyFormat.value;
       const expected = String(els.hashExpectedInput.value || "").trim();
@@ -1277,12 +1407,16 @@
   function updateHashMode() {
     const needsKey = isHmacAlgorithm(els.hashAlgorithm.value);
     els.hmacKeyField.hidden = !needsKey;
+    els.hmacKeyField.style.display = needsKey ? "" : "none";
+    els.hmacKeyField.setAttribute("aria-hidden", needsKey ? "false" : "true");
     els.hmacKeyInput.disabled = !needsKey;
+    if (!needsKey) els.hmacKeyInput.value = "";
     els.hashVerifyResult.textContent = "尚未驗證。";
     els.hashVerifyResult.classList.remove("match", "mismatch");
   }
 
   function clearHash() {
+    clearHashInputFile();
     els.hashInputText.value = "";
     els.hmacKeyInput.value = "";
     els.hashHexOutput.value = "";
@@ -1675,7 +1809,27 @@
     });
 
     els.hashAlgorithm.addEventListener("change", updateHashMode);
-    els.hashInputText.addEventListener("input", updateHashStats);
+    els.hashFile.addEventListener("change", async () => {
+      await loadHashFile(els.hashFile.files[0]);
+    });
+    els.hashDropzone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      els.hashDropzone.classList.add("drag-over");
+    });
+    els.hashDropzone.addEventListener("dragleave", () => {
+      els.hashDropzone.classList.remove("drag-over");
+    });
+    els.hashDropzone.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      els.hashDropzone.classList.remove("drag-over");
+      const file = event.dataTransfer.files[0];
+      if (!file) return;
+      await loadHashFile(file);
+    });
+    els.hashInputText.addEventListener("input", () => {
+      if (state.hashInputFile && els.hashInputText.value) clearHashInputFile();
+      updateHashStats();
+    });
     els.runHashBtn.addEventListener("click", runHash);
     els.verifyHashBtn.addEventListener("click", verifyHash);
     els.clearHashBtn.addEventListener("click", clearHash);

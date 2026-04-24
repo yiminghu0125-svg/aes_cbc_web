@@ -18,7 +18,7 @@
 - 內建小工具區，支援 UTF-8 / Base64 / Hex 即時互轉
 - JSON Diff 比對工具，可先做 JSON 美化排序，再比對欄位差異與欄位值差異
 - Log 整理 / 還原工具，可在本機整理 JSON、log 內嵌 JSON、Java / Spring log、escaped JSON、query string、key=value 與 headers
-- Hash / HMAC 計算工具，支援 SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
+- Hash / HMAC 計算工具，支援 MD5、SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
 - 左側功能選單可切換 AES 加解密、文字編碼轉換、JSON Diff、Log 整理與 Hash / HMAC
 
 ## 使用方式
@@ -59,8 +59,9 @@
 
 ### Hash / HMAC
 
-- 可計算 SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
-- 原文與 HMAC key 均以 UTF-8 處理
+- 可計算 MD5、SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
+- 可貼上文字，或上傳 / 拖曳檔案後直接計算
+- 原文與 HMAC key 均以 UTF-8 處理；檔案則以原始位元組計算
 - 輸出 Hex 與 Base64，並可貼上預期值做一致性驗證
 
 後續若要增加其他小工具，可以延伸同一個工具區，不需要改動 AES 加解密主流程。

@@ -796,6 +796,30 @@ textarea {
   align-items: end;
 }
 
+.hash-verify-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(220px, 0.7fr);
+  gap: 14px;
+  align-items: end;
+}
+
+.hash-expected-field textarea {
+  min-height: 120px;
+}
+
+.hash-verify-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.hash-verify-controls button {
+  width: 100%;
+}
+
+#hashVerifyResult {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 620px) {
   .result-tools {
     width: 100%;
@@ -820,7 +844,8 @@ textarea {
   .json-diff-grid,
   .log-restore-grid,
   .diff-values,
-  .hash-grid {
+  .hash-grid,
+  .hash-verify-panel {
     grid-template-columns: 1fr;
   }
 }
