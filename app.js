@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "aes_cbc_web_profiles_v1";
-  const APP_VERSION = "V1.7.0";
+  const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content || "V1.7.0";
   const VISIT_COUNTER_ENDPOINT = "https://hitscounter.dev/api/hit?output=json&url=https%3A%2F%2Fyiminghu0125-svg.github.io%2Faes_cbc_web%2F&tz=Asia%2FTaipei";
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", { fatal: false });
@@ -1847,7 +1847,9 @@
   }
 
   function init() {
-    els.appVersion.textContent = `Version ${APP_VERSION}`;
+    document.querySelectorAll(".version-badge").forEach((badge) => {
+      badge.textContent = `Version ${APP_VERSION}`;
+    });
     if (!window.crypto || !crypto.subtle) {
       els.cryptoNotice.hidden = false;
       log("Web Crypto API 不可用，無法執行加解密。", true);
