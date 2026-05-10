@@ -46,7 +46,11 @@
     lastLogRestoreText: "",
     lastHashText: "",
     hashLastOutput: "hex",
-    hashInputFile: null
+    hashInputFile: null,
+    lastMarkdownHtml: "",
+    lastMarkdownFullHtml: "",
+    currentMarkdownFileName: "markdown_export.md",
+    markdownViewMode: "reading"
   };
 
   const $ = (id) => document.getElementById(id);
@@ -56,10 +60,12 @@
     visitCounter: $("visitCounter"),
     siteVisitCount: $("siteVisitCount"),
     aesFeatureBtn: $("aesFeatureBtn"),
+    markdownFeatureBtn: $("markdownFeatureBtn"),
     converterFeatureBtn: $("converterFeatureBtn"),
     jsonDiffFeatureBtn: $("jsonDiffFeatureBtn"),
     hashFeatureBtn: $("hashFeatureBtn"),
     aesView: $("aesView"),
+    markdownView: $("markdownView"),
     converterView: $("converterView"),
     jsonDiffView: $("jsonDiffView"),
     hashView: $("hashView"),
@@ -147,6 +153,23 @@
     clearHashBtn: $("clearHashBtn"),
     copyConverterBtn: $("copyConverterBtn"),
     clearConverterBtn: $("clearConverterBtn"),
+    markdownDropzone: $("markdownDropzone"),
+    markdownFile: $("markdownFile"),
+    markdownFileName: $("markdownFileName"),
+    markdownInput: $("markdownInput"),
+    markdownStats: $("markdownStats"),
+    markdownPreview: $("markdownPreview"),
+    markdownStatus: $("markdownStatus"),
+    markdownEditorToolbar: $("markdownEditorToolbar"),
+    downloadMarkdownMdBtn: $("downloadMarkdownMdBtn"),
+    copyMarkdownHtmlBtn: $("copyMarkdownHtmlBtn"),
+    downloadMarkdownHtmlBtn: $("downloadMarkdownHtmlBtn"),
+    printMarkdownBtn: $("printMarkdownBtn"),
+    clearMarkdownBtn: $("clearMarkdownBtn"),
+    markdownLayout: $("markdownLayout"),
+    markdownModeHelp: $("markdownModeHelp"),
+    markdownReadingModeBtn: $("markdownReadingModeBtn"),
+    markdownEditingModeBtn: $("markdownEditingModeBtn"),
     messageLog: $("messageLog")
   };
 
@@ -231,6 +254,7 @@
   function setActiveFeature(feature, silent) {
     const labels = {
       aes: "AES 加解密工具",
+      markdown: "Markdown 文件轉換工具",
       converter: "文字編碼轉換工具",
       jsonDiff: "JSON Diff 比對工具",
       logRestore: "Log 整理 / 還原工具",
@@ -238,6 +262,7 @@
     };
     const views = {
       aes: els.aesView,
+      markdown: els.markdownView,
       converter: els.converterView,
       jsonDiff: els.jsonDiffView,
       logRestore: els.logRestoreView,
@@ -245,6 +270,7 @@
     };
     const buttons = {
       aes: els.aesFeatureBtn,
+      markdown: els.markdownFeatureBtn,
       converter: els.converterFeatureBtn,
       jsonDiff: els.jsonDiffFeatureBtn,
       logRestore: els.logRestoreFeatureBtn,
@@ -300,6 +326,527 @@
     const bytes = getTextByteLength(text);
     els.hashInputStats.textContent = `${text.length.toLocaleString()} 字元 / 約 ${formatBytes(bytes)}`;
     els.hashInputStats.classList.toggle("warn", bytes >= LARGE_TEXT_BYTES);
+  }
+
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function isSafeMarkdownUrl(url) {
+    const trimmed = String(url || "").trim();
+    return /^(https?:|mailto:|tel:|#|\/|\.\/|\.\.\/)/i.test(trimmed);
+  }
+
+  function renderMarkdownInline(text) {
+    const codeTokens = [];
+    let output = escapeHtml(text).replace(/`([^`]+)`/g, (_, code) => {
+      const token = `\u0000CODE${codeTokens.length}\u0000`;
+      codeTokens.push(`<code>${code}</code>`);
+      return token;
+    });
+
+    output = output.replace(/!\[([^\]\n]*)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (match, alt, url) => {
+      if (!isSafeMarkdownUrl(url)) return match;
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${alt || url}</a>`;
+    });
+    output = output.replace(/\[([^\]\n]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (match, label, url) => {
+      if (!isSafeMarkdownUrl(url)) return match;
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
+    output = output
+      .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/__([^_\n]+)__/g, "<strong>$1</strong>")
+      .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+      .replace(/_([^_\n]+)_/g, "<em>$1</em>");
+
+    codeTokens.forEach((html, index) => {
+      output = output.replace(`\u0000CODE${index}\u0000`, html);
+    });
+    return output;
+  }
+
+  function isMarkdownTableDivider(line) {
+    const trimmed = String(line || "").trim();
+    return /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(trimmed);
+  }
+
+  function splitMarkdownTableRow(line) {
+    let trimmed = String(line || "").trim();
+    if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
+    if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
+    return trimmed.split("|").map((cell) => cell.trim());
+  }
+
+  function renderMarkdownTable(headerLine, dividerLine, bodyLines) {
+    const headers = splitMarkdownTableRow(headerLine);
+    const dividerCells = splitMarkdownTableRow(dividerLine);
+    const aligns = dividerCells.map((cell) => {
+      const trimmed = cell.trim();
+      if (trimmed.startsWith(":") && trimmed.endsWith(":")) return "center";
+      if (trimmed.endsWith(":")) return "right";
+      return "left";
+    });
+    const head = headers.map((cell, index) => `<th style="text-align:${aligns[index] || "left"}">${renderMarkdownInline(cell)}</th>`).join("");
+    const rows = bodyLines.map((line) => {
+      const cells = splitMarkdownTableRow(line);
+      const tds = headers.map((_, index) => `<td style="text-align:${aligns[index] || "left"}">${renderMarkdownInline(cells[index] || "")}</td>`).join("");
+      return `<tr>${tds}</tr>`;
+    }).join("");
+    return `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderMarkdownListItem(item) {
+    const task = String(item || "").match(/^\[( |x|X)\]\s+(.+)$/);
+    if (task) {
+      const checked = task[1].toLowerCase() === "x" ? " checked" : "";
+      return `<li class="task-list-item"><input type="checkbox" disabled${checked}> <span>${renderMarkdownInline(task[2])}</span></li>`;
+    }
+    return `<li>${renderMarkdownInline(item)}</li>`;
+  }
+
+  function markdownToHtml(markdown) {
+    const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+    const html = [];
+    let paragraph = [];
+    let inCodeBlock = false;
+    let codeLines = [];
+    let listType = null;
+    let listItems = [];
+
+    const flushParagraph = () => {
+      if (!paragraph.length) return;
+      html.push(`<p>${renderMarkdownInline(paragraph.join(" ").trim())}</p>`);
+      paragraph = [];
+    };
+
+    const flushList = () => {
+      if (!listType || !listItems.length) return;
+      html.push(`<${listType}>${listItems.map(renderMarkdownListItem).join("")}</${listType}>`);
+      listType = null;
+      listItems = [];
+    };
+
+    const flushCodeBlock = () => {
+      html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+      codeLines = [];
+    };
+
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      const trimmed = line.trim();
+
+      if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+        if (inCodeBlock) {
+          flushCodeBlock();
+          inCodeBlock = false;
+        } else {
+          flushParagraph();
+          flushList();
+          inCodeBlock = true;
+          codeLines = [];
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeLines.push(line);
+        continue;
+      }
+
+      if (!trimmed) {
+        flushParagraph();
+        flushList();
+        continue;
+      }
+
+      if (index + 1 < lines.length && line.includes("|") && isMarkdownTableDivider(lines[index + 1])) {
+        flushParagraph();
+        flushList();
+        const bodyLines = [];
+        index += 2;
+        while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
+          bodyLines.push(lines[index]);
+          index += 1;
+        }
+        index -= 1;
+        html.push(renderMarkdownTable(line, lines[index - bodyLines.length], bodyLines));
+        continue;
+      }
+
+      const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+      if (heading) {
+        flushParagraph();
+        flushList();
+        const level = heading[1].length;
+        html.push(`<h${level}>${renderMarkdownInline(heading[2].trim())}</h${level}>`);
+        continue;
+      }
+
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+        flushParagraph();
+        flushList();
+        html.push("<hr>");
+        continue;
+      }
+
+      const quote = trimmed.match(/^>\s?(.*)$/);
+      if (quote) {
+        flushParagraph();
+        flushList();
+        const quoteLines = [quote[1]];
+        while (index + 1 < lines.length && /^>\s?/.test(lines[index + 1].trim())) {
+          index += 1;
+          quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
+        }
+        html.push(`<blockquote>${quoteLines.map((item) => `<p>${renderMarkdownInline(item)}</p>`).join("")}</blockquote>`);
+        continue;
+      }
+
+      const list = line.match(/^\s*((?:[-*+])|(?:\d+\.))\s+(.+)$/);
+      if (list) {
+        flushParagraph();
+        const currentType = /\d+\./.test(list[1]) ? "ol" : "ul";
+        if (listType && listType !== currentType) flushList();
+        listType = currentType;
+        listItems.push(list[2].trim());
+        continue;
+      }
+
+      flushList();
+      paragraph.push(trimmed);
+    }
+
+    if (inCodeBlock) flushCodeBlock();
+    flushParagraph();
+    flushList();
+
+    return html.join("\n") || "";
+  }
+
+  function buildMarkdownHtmlDocument(bodyHtml) {
+    return `<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Markdown 轉換結果</title>
+  <style>
+    body { margin: 0; padding: 32px; color: #17201b; background: #fffdf5; font-family: "Segoe UI", "Noto Sans TC", sans-serif; line-height: 1.75; }
+    main { max-width: 920px; margin: 0 auto; }
+    h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 1.15em 0 0.45em; }
+    p { margin: 0.72em 0; }
+    ul, ol { padding-left: 1.5em; }
+    code { padding: 0.15rem 0.35rem; border-radius: 6px; background: #f1ead8; font-family: Consolas, "Cascadia Mono", monospace; }
+    pre { overflow: auto; padding: 14px; border: 1px solid #ddd1b6; border-radius: 14px; background: #f8f1df; }
+    pre code { padding: 0; background: transparent; }
+    blockquote { margin: 1em 0; padding: 0.6em 1em; border-left: 4px solid #0e756b; background: #f5f0e3; }
+    table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+    th, td { border: 1px solid #ddd1b6; padding: 0.55em 0.7em; vertical-align: top; }
+    th { background: #f3ead4; }
+    a { color: #0e756b; }
+    @media print { body { padding: 18mm; background: #fff; } main { max-width: none; } }
+  </style>
+</head>
+<body>
+  <main class="markdown-document">
+${bodyHtml}
+  </main>
+</body>
+</html>`;
+  }
+
+  function sanitizeDownloadFilename(name, fallback) {
+    const cleaned = String(name || "")
+      .replace(/[\\/:*?"<>|]+/g, "_")
+      .replace(/\s+/g, " ")
+      .trim();
+    return cleaned || fallback;
+  }
+
+  function getMarkdownDownloadFilename() {
+    const baseName = sanitizeDownloadFilename(state.currentMarkdownFileName, "markdown_export.md");
+    if (/\.(md|markdown|txt)$/i.test(baseName)) {
+      return baseName.replace(/\.(markdown|txt)$/i, ".md");
+    }
+    return `${baseName}.md`;
+  }
+
+  function setMarkdownViewMode(mode) {
+    const nextMode = mode === "editing" ? "editing" : "reading";
+    state.markdownViewMode = nextMode;
+    if (els.markdownLayout) {
+      els.markdownLayout.dataset.viewMode = nextMode;
+    }
+    const isReading = nextMode === "reading";
+    els.markdownReadingModeBtn?.classList.toggle("active", isReading);
+    els.markdownEditingModeBtn?.classList.toggle("active", !isReading);
+    els.markdownReadingModeBtn?.setAttribute("aria-pressed", String(isReading));
+    els.markdownEditingModeBtn?.setAttribute("aria-pressed", String(!isReading));
+    if (els.markdownModeHelp) {
+      els.markdownModeHelp.textContent = isReading
+        ? "閱讀模式為預設：上傳、Markdown 內容與即時預覽由上而下排列，預覽區保留完整寬度；編輯快捷工具列會隱藏，適合閱讀、匯出與列印。"
+        : "編輯模式：Markdown 內容與即時預覽左右並排，並顯示快捷工具列；適合邊改邊看，修改後可直接下載 MD。";
+    }
+  }
+
+  function updateMarkdownStats() {
+    const text = els.markdownInput.value || "";
+    const bytes = getTextByteLength(text);
+    els.markdownStats.textContent = `${text.length.toLocaleString()} 字元 / 約 ${formatBytes(bytes)}`;
+    els.markdownStats.classList.toggle("warn", bytes >= LARGE_TEXT_BYTES);
+  }
+
+  function renderMarkdownPreview() {
+    const text = els.markdownInput.value || "";
+    updateMarkdownStats();
+    if (!text.trim()) {
+      state.lastMarkdownHtml = "";
+      state.lastMarkdownFullHtml = "";
+      els.markdownPreview.classList.add("empty");
+      els.markdownPreview.textContent = "尚未輸入 Markdown。";
+      els.markdownStatus.textContent = "尚未輸入 Markdown。閱讀模式適合檢視與匯出；切到編輯模式後可使用快捷工具列插入標題、粗體、清單、連結、表格與程式碼區塊。";
+      return;
+    }
+    const html = markdownToHtml(text);
+    state.lastMarkdownHtml = html;
+    state.lastMarkdownFullHtml = buildMarkdownHtmlDocument(html);
+    els.markdownPreview.classList.remove("empty");
+    els.markdownPreview.innerHTML = html;
+    els.markdownStatus.textContent = `已產生預覽。HTML 片段約 ${formatBytes(getTextByteLength(html))}；編輯模式可用快捷工具列輔助修改，並可下載目前 Markdown 內容為 MD。`;
+  }
+
+  function setMarkdownCursor(position) {
+    const input = els.markdownInput;
+    const cursor = Math.max(0, Math.min(Number(position) || 0, input.value.length));
+    input.focus();
+    input.setSelectionRange(cursor, cursor);
+  }
+
+  function replaceMarkdownSelection(replacement, cursorPosition) {
+    const input = els.markdownInput;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    input.value = `${input.value.slice(0, start)}${replacement}${input.value.slice(end)}`;
+    setMarkdownCursor(Number.isFinite(cursorPosition) ? cursorPosition : start + replacement.length);
+    renderMarkdownPreview();
+  }
+
+  function wrapMarkdownSelection(prefix, suffix, placeholder) {
+    const input = els.markdownInput;
+    const selected = input.value.slice(input.selectionStart, input.selectionEnd);
+    const content = selected || placeholder;
+    const start = input.selectionStart;
+    const replacement = `${prefix}${content}${suffix}`;
+    replaceMarkdownSelection(replacement, start + replacement.length);
+  }
+
+  function getMarkdownSelectedLineRange() {
+    const input = els.markdownInput;
+    const value = input.value;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+    const lineEndIndex = value.indexOf("\n", end);
+    const lineEnd = lineEndIndex === -1 ? value.length : lineEndIndex;
+    return { value, lineStart, lineEnd };
+  }
+
+  function transformMarkdownSelectedLines(transformLine) {
+    const input = els.markdownInput;
+    const { value, lineStart, lineEnd } = getMarkdownSelectedLineRange();
+    const block = value.slice(lineStart, lineEnd) || "";
+    const lines = block.split("\n");
+    const transformed = lines.map((line, index) => transformLine(line, index)).join("\n");
+    input.value = `${value.slice(0, lineStart)}${transformed}${value.slice(lineEnd)}`;
+    setMarkdownCursor(lineStart + transformed.length);
+    renderMarkdownPreview();
+  }
+
+  function applyMarkdownHeading(level) {
+    const hashes = "#".repeat(level);
+    transformMarkdownSelectedLines((line) => {
+      const cleaned = line.replace(/^\s*#{1,6}\s+/, "").trim();
+      return `${hashes} ${cleaned || "標題"}`;
+    });
+  }
+
+  function stripMarkdownListPrefix(line) {
+    return line
+      .replace(/^\s*(?:[-*+]\s+|\d+\.\s+|- \[ \]\s+|- \[[xX]\]\s+)/, "")
+      .trim();
+  }
+
+  function getContiguousOrderedListNextNumber(value, lineStart) {
+    const before = value.slice(0, lineStart).replace(/\n$/, "");
+    if (!before.trim()) return 1;
+
+    const lines = before.split("\n");
+    const orderedNumbers = [];
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const line = lines[index];
+      if (!line.trim()) break;
+
+      const ordered = line.match(/^\s*(\d+)\.\s+/);
+      if (!ordered) break;
+      orderedNumbers.unshift(Number(ordered[1]));
+    }
+
+    if (!orderedNumbers.length) return 1;
+    const firstNumber = orderedNumbers[0] || 1;
+    const lastNumber = orderedNumbers[orderedNumbers.length - 1] || firstNumber;
+    return Math.max(lastNumber + 1, firstNumber + orderedNumbers.length);
+  }
+
+  function getOrderedListStartNumber(value, lineStart, lines) {
+    const firstExplicitNumber = String(lines[0] || "").match(/^\s*(\d+)\.\s+/);
+    const previousNextNumber = getContiguousOrderedListNextNumber(value, lineStart);
+    if (previousNextNumber > 1) return previousNextNumber;
+    return firstExplicitNumber ? Number(firstExplicitNumber[1]) : 1;
+  }
+
+  function applyMarkdownLinePrefix(type) {
+    const { value, lineStart, lineEnd } = getMarkdownSelectedLineRange();
+    const block = value.slice(lineStart, lineEnd) || "";
+    const lines = block.split("\n");
+    const orderedStartNumber = type === "ol" ? getOrderedListStartNumber(value, lineStart, lines) : 1;
+
+    transformMarkdownSelectedLines((line, index) => {
+      const cleaned = stripMarkdownListPrefix(line) || "項目";
+      if (type === "ul") return `- ${cleaned}`;
+      if (type === "ol") return `${orderedStartNumber + index}. ${cleaned}`;
+      if (type === "todo") return `- [ ] ${cleaned}`;
+      if (type === "quote") return `> ${line.replace(/^\s*>\s?/, "") || "引用內容"}`;
+      return line;
+    });
+  }
+
+  function insertMarkdownBlock(blockText, cursorOffset) {
+    const input = els.markdownInput;
+    const value = input.value;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const needsLeadingBreak = start > 0 && !value.slice(0, start).endsWith("\n");
+    const needsTrailingBreak = value.slice(end) && !value.slice(end).startsWith("\n");
+    const prefix = needsLeadingBreak ? "\n\n" : "";
+    const suffix = needsTrailingBreak ? "\n\n" : "";
+    const replacement = `${prefix}${blockText}${suffix}`;
+    input.value = `${value.slice(0, start)}${replacement}${value.slice(end)}`;
+    const cursorPosition = start + prefix.length + (Number.isFinite(cursorOffset) ? cursorOffset : blockText.length);
+    setMarkdownCursor(cursorPosition);
+    renderMarkdownPreview();
+  }
+
+  function applyMarkdownAction(action) {
+    if (!action) return;
+    if (action === "h1") return applyMarkdownHeading(1);
+    if (action === "h2") return applyMarkdownHeading(2);
+    if (action === "h3") return applyMarkdownHeading(3);
+    if (action === "bold") return wrapMarkdownSelection("**", "**", "粗體文字");
+    if (action === "italic") return wrapMarkdownSelection("*", "*", "斜體文字");
+    if (action === "inline-code") return wrapMarkdownSelection("`", "`", "code");
+    if (action === "quote") return applyMarkdownLinePrefix("quote");
+    if (action === "ul") return applyMarkdownLinePrefix("ul");
+    if (action === "ol") return applyMarkdownLinePrefix("ol");
+    if (action === "todo") return applyMarkdownLinePrefix("todo");
+    if (action === "link") {
+      const input = els.markdownInput;
+      const selected = input.value.slice(input.selectionStart, input.selectionEnd) || "連結文字";
+      const start = input.selectionStart;
+      const replacement = `[${selected}](https://example.com)`;
+      replaceMarkdownSelection(replacement, start + replacement.length);
+      return;
+    }
+    if (action === "code-block") {
+      const input = els.markdownInput;
+      const selected = input.value.slice(input.selectionStart, input.selectionEnd) || "程式碼";
+      return insertMarkdownBlock(`\`\`\`\n${selected}\n\`\`\``);
+    }
+    if (action === "table") {
+      const table = "| 欄位一 | 欄位二 | 欄位三 |\n|---|---|---|\n| 內容一 | 內容二 | 內容三 |";
+      return insertMarkdownBlock(table);
+    }
+    if (action === "hr") return insertMarkdownBlock("---");
+  }
+
+  function isSupportedMarkdownFile(file) {
+    if (!file) return false;
+    return /\.(md|markdown|txt)$/i.test(file.name) || /^text\//i.test(file.type || "");
+  }
+
+  async function loadMarkdownFile(file) {
+    if (!file) return;
+    if (!isSupportedMarkdownFile(file)) {
+      log("請上傳 .md、.markdown 或 .txt 文字檔。", true);
+      return;
+    }
+    if (!confirmLargeText(file.size, "即將載入的 Markdown 檔案")) return;
+    els.markdownInput.value = await file.text();
+    state.currentMarkdownFileName = sanitizeDownloadFilename(file.name, "markdown_export.md");
+    els.markdownFileName.textContent = `${file.name} / ${formatBytes(file.size)}`;
+    renderMarkdownPreview();
+    log(`已載入 Markdown 檔案：${file.name}。`);
+  }
+
+  function downloadMarkdownMd() {
+    const text = els.markdownInput.value || "";
+    if (!text.trim()) {
+      log("尚無 Markdown 內容可下載。", true);
+      return;
+    }
+    const filename = getMarkdownDownloadFilename();
+    downloadText(filename, text, true, "text/markdown;charset=utf-8");
+    log(`已下載 ${filename}。`);
+  }
+
+  async function copyMarkdownHtml() {
+    if (!state.lastMarkdownHtml) {
+      log("尚無 Markdown HTML 可複製。", true);
+      return;
+    }
+    await copyTextToClipboard(state.lastMarkdownHtml, els.markdownInput);
+    log("已複製 Markdown 轉換後的 HTML 片段。");
+  }
+
+  function downloadMarkdownHtml() {
+    if (!state.lastMarkdownFullHtml) {
+      log("尚無 Markdown HTML 可下載。", true);
+      return;
+    }
+    downloadText("markdown_export.html", state.lastMarkdownFullHtml, true, "text/html;charset=utf-8");
+    log("已下載 markdown_export.html。");
+  }
+
+  function printMarkdownAsPdf() {
+    if (!state.lastMarkdownFullHtml) {
+      log("尚無 Markdown 預覽可列印。", true);
+      return;
+    }
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      log("瀏覽器封鎖了列印視窗，請允許彈出視窗後再試一次。", true);
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(state.lastMarkdownFullHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 120);
+    log("已開啟列印視窗，可在瀏覽器列印對話框選擇另存 PDF。");
+  }
+
+  function clearMarkdown() {
+    els.markdownInput.value = "";
+    els.markdownFile.value = "";
+    state.currentMarkdownFileName = "markdown_export.md";
+    els.markdownFileName.textContent = "或把 .md / .markdown / .txt 拖曳到這裡";
+    renderMarkdownPreview();
+    log("已清空 Markdown 轉換內容。");
   }
 
   function clearHashInputFile() {
@@ -1588,9 +2135,9 @@
       : "已切換到 CBC：若輸入完整 JSON，會加解密 Body 欄位。");
   }
 
-  function downloadText(filename, text, withBom) {
+  function downloadText(filename, text, withBom, mimeType) {
     const parts = withBom ? [new Uint8Array([0xef, 0xbb, 0xbf]), text] : [text];
-    const blob = new Blob(parts, { type: "text/plain;charset=utf-8" });
+    const blob = new Blob(parts, { type: mimeType || "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -1654,6 +2201,7 @@
 
   function bindEvents() {
     els.aesFeatureBtn.addEventListener("click", () => setActiveFeature("aes"));
+    els.markdownFeatureBtn.addEventListener("click", () => setActiveFeature("markdown"));
     els.converterFeatureBtn.addEventListener("click", () => setActiveFeature("converter"));
     els.jsonDiffFeatureBtn.addEventListener("click", () => setActiveFeature("jsonDiff"));
     els.logRestoreFeatureBtn.addEventListener("click", () => setActiveFeature("logRestore"));
@@ -1777,6 +2325,48 @@
     els.copyConverterBtn.addEventListener("click", copyActiveConverterValue);
     els.clearConverterBtn.addEventListener("click", clearConverter);
 
+    els.markdownReadingModeBtn?.addEventListener("click", () => setMarkdownViewMode("reading"));
+    els.markdownEditingModeBtn?.addEventListener("click", () => setMarkdownViewMode("editing"));
+    els.markdownInput.addEventListener("input", renderMarkdownPreview);
+    els.markdownInput.addEventListener("keydown", (event) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === "b") {
+        event.preventDefault();
+        applyMarkdownAction("bold");
+      } else if (key === "i") {
+        event.preventDefault();
+        applyMarkdownAction("italic");
+      }
+    });
+    els.markdownEditorToolbar?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-md-action]");
+      if (!button) return;
+      applyMarkdownAction(button.dataset.mdAction);
+    });
+    els.markdownFile.addEventListener("change", async () => {
+      await loadMarkdownFile(els.markdownFile.files[0]);
+    });
+    els.markdownDropzone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      els.markdownDropzone.classList.add("drag-over");
+    });
+    els.markdownDropzone.addEventListener("dragleave", () => {
+      els.markdownDropzone.classList.remove("drag-over");
+    });
+    els.markdownDropzone.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      els.markdownDropzone.classList.remove("drag-over");
+      const file = event.dataTransfer.files[0];
+      if (!file) return;
+      await loadMarkdownFile(file);
+    });
+    els.downloadMarkdownMdBtn.addEventListener("click", downloadMarkdownMd);
+    els.copyMarkdownHtmlBtn.addEventListener("click", copyMarkdownHtml);
+    els.downloadMarkdownHtmlBtn.addEventListener("click", downloadMarkdownHtml);
+    els.printMarkdownBtn.addEventListener("click", printMarkdownAsPdf);
+    els.clearMarkdownBtn.addEventListener("click", clearMarkdown);
+
     els.jsonDiffLeftInput.addEventListener("input", updateJsonDiffStats);
     els.jsonDiffRightInput.addEventListener("input", updateJsonDiffStats);
     els.runJsonDiffBtn.addEventListener("click", runJsonDiff);
@@ -1861,6 +2451,8 @@
     setActiveFeature("aes", true);
     updateInputStats();
     updateConverterStats();
+    setMarkdownViewMode("reading");
+    renderMarkdownPreview();
     updateJsonDiffStats();
     updateLogRestoreStats();
     updateHashStats();

@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="app-version" content="V1.7.0">
+  <meta name="app-version" content="V1.8.6">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AES-256 網頁加解密工具</title>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-1LMJ5FH62M"></script>
@@ -12,7 +12,7 @@
     gtag("js", new Date());
     gtag("config", "G-1LMJ5FH62M");
   </script>
-  <link rel="stylesheet" href="style.css?v=1.7.0">
+  <link rel="stylesheet" href="style.css?v=1.8.4">
 </head>
 <body>
   <main class="shell">
@@ -20,6 +20,9 @@
       <aside class="feature-menu" id="featureMenu" aria-label="功能選單">
         <button class="active" id="aesFeatureBtn" type="button" data-feature-target="aes" aria-current="page">
           AES 加解密
+        </button>
+        <button id="markdownFeatureBtn" type="button" data-feature-target="markdown">
+          Markdown 轉換
         </button>
         <button id="converterFeatureBtn" type="button" data-feature-target="converter">
           文字編碼轉換
@@ -188,6 +191,97 @@
           <span class="visit-counter-label">總瀏覽</span>
           <strong class="visit-counter-value" id="siteVisitCount">讀取中</strong>
         </aside>
+
+        <section class="toolbox feature-view" id="markdownView" hidden aria-labelledby="markdownTitle">
+          <div class="toolbox-head">
+            <div>
+              <div class="hero-meta">
+                <p class="eyebrow">Local browser only</p>
+                <span class="version-badge">Version V1.8.6</span>
+              </div>
+              <h2 class="feature-title" id="markdownTitle">Markdown 文件轉換工具</h2>
+              <p class="lead">貼上或上傳 .md 檔，即時預覽，並可輸出 MD / HTML / PDF；內容只在本機瀏覽器處理，不會上傳。</p>
+            </div>
+          </div>
+
+          <article class="panel utility-panel markdown-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Markdown / MD / HTML / PDF</p>
+              </div>
+              <div class="result-tools">
+                <button class="ghost" id="downloadMarkdownMdBtn" type="button">下載 MD</button>
+                <button class="ghost" id="copyMarkdownHtmlBtn" type="button">複製 HTML</button>
+                <button class="ghost" id="downloadMarkdownHtmlBtn" type="button">下載 HTML</button>
+                <button class="primary" id="printMarkdownBtn" type="button">列印 / 另存 PDF</button>
+                <button class="ghost" id="clearMarkdownBtn" type="button">清空</button>
+              </div>
+            </div>
+
+            <section class="markdown-mode-bar" aria-labelledby="markdownModeTitle">
+              <div>
+                <div class="section-title" id="markdownModeTitle">版面模式</div>
+                <p class="section-hint" id="markdownModeHelp">閱讀模式為預設：上傳、Markdown 內容與即時預覽由上而下排列，預覽區保留完整寬度，適合閱讀、匯出與列印。</p>
+              </div>
+              <div class="tool-tabs markdown-mode-tabs" role="group" aria-label="Markdown 版面模式">
+                <button class="active" id="markdownReadingModeBtn" type="button" data-markdown-mode="reading" aria-pressed="true">閱讀模式</button>
+                <button id="markdownEditingModeBtn" type="button" data-markdown-mode="editing" aria-pressed="false">編輯模式</button>
+              </div>
+            </section>
+
+            <div class="markdown-stack" id="markdownLayout" data-view-mode="reading">
+              <section class="markdown-step-card markdown-upload-step">
+                <div class="section-title">1. 上傳 MD</div>
+                <label class="dropzone" id="markdownDropzone" for="markdownFile">
+                  <input id="markdownFile" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain">
+                  <span>選擇 MD 檔</span>
+                  <small id="markdownFileName">或把 .md / .markdown / .txt 拖曳到這裡</small>
+                </label>
+              </section>
+
+              <section class="markdown-step-card markdown-input-step">
+                <div class="markdown-editor-heading">
+                  <div>
+                    <div class="section-title">2. Markdown 內容</div>
+                    <p class="section-hint">編輯模式會顯示快捷工具列；閱讀模式會隱藏工具列，保留單純閱讀與匯出流程。</p>
+                  </div>
+                </div>
+                <div class="markdown-editor-toolbar" id="markdownEditorToolbar" aria-label="Markdown 編輯快捷工具列">
+                  <button type="button" data-md-action="h1">H1</button>
+                  <button type="button" data-md-action="h2">H2</button>
+                  <button type="button" data-md-action="h3">H3</button>
+                  <button type="button" data-md-action="bold">粗體</button>
+                  <button type="button" data-md-action="italic">斜體</button>
+                  <button type="button" data-md-action="quote">引用</button>
+                  <button type="button" data-md-action="ul">項目清單</button>
+                  <button type="button" data-md-action="ol">編號清單</button>
+                  <button type="button" data-md-action="todo">待辦</button>
+                  <button type="button" data-md-action="link">連結</button>
+                  <button type="button" data-md-action="inline-code">行內程式碼</button>
+                  <button type="button" data-md-action="code-block">程式碼區塊</button>
+                  <button type="button" data-md-action="table">表格</button>
+                  <button type="button" data-md-action="hr">分隔線</button>
+                </div>
+                <label class="field grow">
+                  <span class="sr-only">Markdown 內容輸入區</span>
+                  <textarea id="markdownInput" spellcheck="false" placeholder="貼上 Markdown 內容，或上傳 / 拖曳 .md 檔。編輯後可使用「下載 MD」輸出目前內容。"></textarea>
+                  <small class="text-stats" id="markdownStats">0 字元 / 約 0 B</small>
+                </label>
+              </section>
+
+              <section class="markdown-step-card markdown-preview-step">
+                <div class="section-title">3. 即時預覽</div>
+                <div class="markdown-preview empty" id="markdownPreview" aria-live="polite">
+                  尚未輸入 Markdown。
+                </div>
+              </section>
+            </div>
+
+            <section class="diff-summary" id="markdownStatus" aria-live="polite">
+              尚未輸入 Markdown。支援標題、清單、表格、粗體、斜體、連結與程式碼區塊；編輯後可下載 MD，原始 HTML 會被轉成純文字顯示。
+            </section>
+          </article>
+        </section>
 
         <section class="toolbox feature-view" id="converterView" hidden aria-labelledby="toolboxTitle">
           <div class="toolbox-head">

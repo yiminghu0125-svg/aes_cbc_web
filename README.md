@@ -16,10 +16,11 @@
 - 支援匯入 / 匯出 profiles JSON
 - AES 解密結果可做 JSON 美化，並保留原本欄位順序
 - 內建小工具區，支援 UTF-8 / Base64 / Hex 即時互轉
+- Markdown 轉換工具，支援貼上 / 上傳 `.md`、即時預覽、編輯模式快捷工具列、下載 MD、複製 HTML、下載 HTML、列印 / 另存 PDF
 - JSON Diff 比對工具，可先做 JSON 美化排序，再比對欄位差異與欄位值差異
 - Log 整理 / 還原工具，可在本機整理 JSON、log 內嵌 JSON、Java / Spring log、escaped JSON、query string、key=value 與 headers
 - Hash / HMAC 計算工具，支援 MD5、SHA-256、SHA-512、HMAC-SHA256、HMAC-SHA512
-- 左側功能選單可切換 AES 加解密、文字編碼轉換、JSON Diff、Log 整理與 Hash / HMAC
+- 左側功能選單可切換 AES 加解密、Markdown 轉換、文字編碼轉換、JSON Diff、Log 整理與 Hash / HMAC
 
 ## 使用方式
 
@@ -36,6 +37,23 @@
 左側功能選單可切換到其他小工具：
 
 共用的格式化、編碼、JSON 與複製輔助函式集中在 `shared-utils.js`，各工具主流程保留在 `app.js`。
+
+### Markdown 轉換
+
+- 預設採閱讀模式：上傳 MD → Markdown 內容 → 即時預覽，讓預覽區保留完整寬度
+- 支援切換編輯模式：Markdown 內容與即時預覽左右並排，適合邊改邊看
+- 只有在編輯模式才會顯示 Markdown 快捷工具列，閱讀模式不顯示，避免干擾閱讀
+- 快捷工具列支援 H1 / H2 / H3、粗體、斜體、引用、項目清單、編號清單、待辦清單、連結、行內程式碼、程式碼區塊、表格與分隔線
+- 編號清單會依照前方連續清單自動接續 1、2、3……，避免 Markdown 原文全部顯示為 `1.` 而不易閱讀
+- 點擊快捷工具後游標會停在插入內容後方，不會自動反白選取佔位文字，方便繼續輸入
+- 支援 `Ctrl+B` 粗體與 `Ctrl+I` 斜體快捷鍵
+- 版面模式會顯示文字說明，提醒閱讀模式適合閱讀 / 匯出，編輯模式適合編修
+- 可貼上 Markdown 內容，或上傳 / 拖曳 `.md`、`.markdown`、`.txt` 檔
+- 會在本機瀏覽器即時產生預覽
+- 支援標題、清單、表格、粗體、斜體、連結與程式碼區塊
+- 可下載目前編輯後的 Markdown 內容為 `.md`
+- 可複製 HTML 片段、下載完整 HTML，或開啟瀏覽器列印並另存 PDF
+- 原始 HTML 會被跳脫為純文字，預覽區不執行使用者輸入的 script
 
 ### 文字編碼轉換
 
