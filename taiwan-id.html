@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>台灣身分證號／新舊居留證號產生工具</title>
+  <style>
+    :root { color-scheme: light; --bg:#f4f7f5; --card:#fff; --text:#1f2a24; --muted:#66736c; --line:#d8e0db; --primary:#245f48; --danger:#a83028; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif; background:var(--bg); color:var(--text); }
+    main { width:min(1120px,calc(100% - 32px)); margin:32px auto; }
+    header { margin-bottom:20px; }
+    h1 { margin:0 0 8px; font-size:clamp(1.7rem,3vw,2.4rem); }
+    h2 { margin:0 0 14px; font-size:1.15rem; }
+    p { line-height:1.65; }
+    .lead,.hint { color:var(--muted); }
+    .warning { border:1px solid #e3c7a3; background:#fff9ef; padding:12px 14px; border-radius:12px; }
+    .layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; box-shadow:0 8px 24px rgba(31,42,36,.05); }
+    .fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    label { display:grid; gap:7px; font-weight:650; }
+    input,select,textarea,button { font:inherit; }
+    input,select,textarea { width:100%; border:1px solid #bdc9c1; border-radius:10px; padding:10px 12px; background:#fff; color:var(--text); }
+    textarea { min-height:260px; resize:vertical; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; line-height:1.55; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+    button,.back-link { border:0; border-radius:10px; padding:10px 15px; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+    button.primary { background:var(--primary); color:#fff; }
+    button.secondary,.back-link { background:#e8eeea; color:var(--text); }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    .status { min-height:24px; margin-top:12px; color:var(--muted); }
+    .status.error { color:var(--danger); }
+    .rule-table { width:100%; border-collapse:collapse; font-size:.94rem; }
+    .rule-table th,.rule-table td { border-bottom:1px solid var(--line); padding:10px 8px; text-align:left; vertical-align:top; }
+    .full { grid-column:1/-1; }
+    code { background:#eef2ef; padding:2px 5px; border-radius:5px; }
+    @media (max-width:760px) { .layout,.fields { grid-template-columns:1fr; } main { width:min(100% - 20px,1120px); margin:18px auto; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="back-link" href="./index.html">← 回工具首頁</a>
+    <h1>台灣身分證號／新舊居留證號產生工具</h1>
+    <p class="lead">依官方格式與檢查碼規則，在瀏覽器本機產生測試資料，並可自動辨識與驗證既有號碼。</p>
+    <p class="warning"><strong>測試用途：</strong>產生結果僅符合格式與檢查碼，不代表政府實際核發，也不得用於冒用身分、註冊真實帳戶或其他違法用途。</p>
+  </header>
+
+  <section class="layout">
+    <article class="card">
+      <h2>產生測試證號</h2>
+      <div class="fields">
+        <label>證號類型
+          <select id="idType">
+            <option value="national">國民身分證字號</option>
+            <option value="arcNew">新式外來人口統一證號</option>
+            <option value="arcOld">舊式外來人口統一證號</option>
+          </select>
+        </label>
+        <label>首碼地區
+          <select id="area"><option value="random">隨機地區</option></select>
+        </label>
+        <label id="genderField">性別
+          <select id="gender"></select>
+        </label>
+        <label id="categoryField" hidden>新式身分碼
+          <select id="category">
+            <option value="random">隨機</option>
+            <option value="0-6">0–6：外國人或無國籍人士</option>
+            <option value="7">7：無戶籍國民</option>
+            <option value="8">8：香港／澳門居民</option>
+            <option value="9">9：大陸地區人民</option>
+          </select>
+        </label>
+        <label id="oldCodeField" hidden>舊式第二碼
+          <select id="oldCode">
+            <option value="random">隨機 A–D</option>
+            <option value="A">A（男性類別）</option>
+            <option value="B">B（女性類別）</option>
+            <option value="C">C（男性類別）</option>
+            <option value="D">D（女性類別）</option>
+          </select>
+        </label>
+        <label>產生筆數
+          <input id="count" type="number" min="1" max="100" value="10">
+        </label>
+      </div>
+      <div class="actions">
+        <button class="primary" id="generateBtn" type="button">產生證號</button>
+        <button class="secondary" id="copyBtn" type="button" disabled>複製結果</button>
+        <button class="secondary" id="clearBtn" type="button">清空</button>
+      </div>
+      <p class="status" id="generateStatus" aria-live="polite"></p>
+      <label>產生結果
+        <textarea id="output" readonly spellcheck="false" placeholder="產生結果會顯示在這裡"></textarea>
+      </label>
+    </article>
+
+    <article class="card">
+      <h2>驗證證號</h2>
+      <label>輸入一筆或多筆證號
+        <textarea id="verifyInput" spellcheck="false" placeholder="每行一筆，或以空白、逗號分隔"></textarea>
+      </label>
+      <div class="actions">
+        <button class="primary" id="verifyBtn" type="button">自動辨識並驗證</button>
+        <button class="secondary" id="clearVerifyBtn" type="button">清空</button>
+      </div>
+      <p class="status" id="verifyStatus" aria-live="polite"></p>
+      <label>驗證結果
+        <textarea id="verifyOutput" readonly spellcheck="false"></textarea>
+      </label>
+    </article>
+
+    <article class="card full">
+      <h2>編碼規則摘要</h2>
+      <table class="rule-table">
+        <thead><tr><th>類型</th><th>格式</th><th>重要碼位</th></tr></thead>
+        <tbody>
+          <tr><td>國民身分證字號</td><td><code>1 碼英文 + 9 碼數字</code></td><td>第 2 碼：1 男、2 女；第 10 碼為檢查碼。</td></tr>
+          <tr><td>新式外來人口統一證號</td><td><code>1 碼英文 + 9 碼數字</code></td><td>第 2 碼：8 男、9 女；第 3 碼為身分碼；第 10 碼為檢查碼。</td></tr>
+          <tr><td>舊式外來人口統一證號</td><td><code>2 碼英文 + 8 碼數字</code></td><td>第 1 碼為區域碼；第 2 碼依性別及核發機關使用 A、B、C、D；第 10 碼為檢查碼。</td></tr>
+        </tbody>
+      </table>
+      <p class="hint">檢查碼只能確認格式與加權計算正確，無法證明號碼確實存在或由主管機關核發。</p>
+    </article>
+  </section>
+</main>
+<script>
+(() => {
+  "use strict";
+  const LETTER_CODES = {A:10,B:11,C:12,D:13,E:14,F:15,G:16,H:17,I:34,J:18,K:19,L:20,M:21,N:22,O:35,P:23,Q:24,R:25,S:26,T:27,U:28,V:29,W:32,X:30,Y:31,Z:33};
+  const AREA_NAMES = {A:"臺北市",B:"臺中市",C:"基隆市",D:"臺南市",E:"高雄市",F:"新北市",G:"宜蘭縣",H:"桃園市",I:"嘉義市",J:"新竹縣",K:"苗栗縣",L:"臺中縣（舊碼）",M:"南投縣",N:"彰化縣",O:"新竹市",P:"雲林縣",Q:"嘉義縣",R:"臺南縣（舊碼）",S:"高雄縣（舊碼）",T:"屏東縣",U:"花蓮縣",V:"臺東縣",W:"金門縣",X:"澎湖縣",Y:"陽明山管理局（舊碼）",Z:"連江縣"};
+  const WEIGHTS = [1,9,8,7,6,5,4,3,2,1,1];
+  const $ = id => document.getElementById(id);
+  const els = { idType:$("idType"),area:$("area"),gender:$("gender"),genderField:$("genderField"),category:$("category"),categoryField:$("categoryField"),oldCode:$("oldCode"),oldCodeField:$("oldCodeField"),count:$("count"),output:$("output"),generateBtn:$("generateBtn"),copyBtn:$("copyBtn"),clearBtn:$("clearBtn"),generateStatus:$("generateStatus"),verifyInput:$("verifyInput"),verifyOutput:$("verifyOutput"),verifyBtn:$("verifyBtn"),clearVerifyBtn:$("clearVerifyBtn"),verifyStatus:$("verifyStatus") };
+
+  Object.keys(LETTER_CODES).forEach(letter => {
+    const option = document.createElement("option");
+    option.value = letter;
+    option.textContent = `${letter}－${AREA_NAMES[letter]}`;
+    els.area.appendChild(option);
+  });
+
+  function randomItem(values) { return values[Math.floor(Math.random() * values.length)]; }
+  function randomDigits(length) { return Array.from({length}, () => Math.floor(Math.random()*10)).join(""); }
+  function pickArea() { return els.area.value === "random" ? randomItem(Object.keys(LETTER_CODES)) : els.area.value; }
+  function checksum(expandedWithoutChecksum) {
+    const sum = expandedWithoutChecksum.reduce((total,value,index) => total + value * WEIGHTS[index], 0);
+    return (10 - (sum % 10)) % 10;
+  }
+  function expandFirstLetter(letter) { const code=LETTER_CODES[letter]; return [Math.floor(code/10),code%10]; }
+  function isWeightedValid(values) { return values.reduce((total,value,index) => total + value * WEIGHTS[index],0) % 10 === 0; }
+
+  function generateNational() {
+    const letter=pickArea();
+    const gender=els.gender.value === "random" ? randomItem(["1","2"]) : els.gender.value;
+    const serial=randomDigits(7);
+    const base=[...expandFirstLetter(letter),...(`${gender}${serial}`.split("").map(Number))];
+    return `${letter}${gender}${serial}${checksum(base)}`;
+  }
+  function generateNewArc() {
+    const letter=pickArea();
+    const gender=els.gender.value === "random" ? randomItem(["8","9"]) : els.gender.value;
+    let category=els.category.value;
+    if (category === "random") category=String(Math.floor(Math.random()*10));
+    if (category === "0-6") category=String(Math.floor(Math.random()*7));
+    const serial=randomDigits(6);
+    const base=[...expandFirstLetter(letter),...(`${gender}${category}${serial}`.split("").map(Number))];
+    return `${letter}${gender}${category}${serial}${checksum(base)}`;
+  }
+  function generateOldArc() {
+    const first=pickArea();
+    const second=els.oldCode.value === "random" ? randomItem(["A","B","C","D"]) : els.oldCode.value;
+    const serial=randomDigits(7);
+    const secondCode=LETTER_CODES[second] % 10;
+    const base=[...expandFirstLetter(first),secondCode,...serial.split("").map(Number)];
+    return `${first}${second}${serial}${checksum(base)}`;
+  }
+
+  function validateNational(value) {
+    if (!/^[A-Z][12]\d{8}$/.test(value)) return false;
+    return isWeightedValid([...expandFirstLetter(value[0]),...value.slice(1).split("").map(Number)]);
+  }
+  function validateNewArc(value) {
+    if (!/^[A-Z][89]\d{8}$/.test(value)) return false;
+    return isWeightedValid([...expandFirstLetter(value[0]),...value.slice(1).split("").map(Number)]);
+  }
+  function validateOldArc(value) {
+    if (!/^[A-Z][ABCD]\d{8}$/.test(value)) return false;
+    return isWeightedValid([...expandFirstLetter(value[0]),LETTER_CODES[value[1]]%10,...value.slice(2).split("").map(Number)]);
+  }
+  function classify(value) {
+    if (/^[A-Z][12]\d{8}$/.test(value)) return {type:"國民身分證字號",valid:validateNational(value)};
+    if (/^[A-Z][89]\d{8}$/.test(value)) return {type:"新式外來人口統一證號",valid:validateNewArc(value)};
+    if (/^[A-Z][ABCD]\d{8}$/.test(value)) return {type:"舊式外來人口統一證號",valid:validateOldArc(value)};
+    return {type:"無法辨識格式",valid:false};
+  }
+
+  function syncFields() {
+    const type=els.idType.value;
+    els.categoryField.hidden=type !== "arcNew";
+    els.oldCodeField.hidden=type !== "arcOld";
+    els.genderField.hidden=type === "arcOld";
+    els.gender.innerHTML="";
+    if (type === "national") els.gender.innerHTML='<option value="random">隨機</option><option value="1">男性（1）</option><option value="2">女性（2）</option>';
+    if (type === "arcNew") els.gender.innerHTML='<option value="random">隨機</option><option value="8">男性（8）</option><option value="9">女性（9）</option>';
+  }
+  function setStatus(element,message,error=false) { element.textContent=message; element.classList.toggle("error",error); }
+
+  els.idType.addEventListener("change",syncFields);
+  els.generateBtn.addEventListener("click",() => {
+    const count=Math.max(1,Math.min(100,Number(els.count.value)||1));
+    els.count.value=String(count);
+    const generator=els.idType.value === "national" ? generateNational : els.idType.value === "arcNew" ? generateNewArc : generateOldArc;
+    const results=new Set();
+    let guard=0;
+    while(results.size<count && guard<count*20) { results.add(generator()); guard+=1; }
+    els.output.value=[...results].join("\n");
+    els.copyBtn.disabled=!els.output.value;
+    setStatus(els.generateStatus,`已產生 ${results.size} 筆格式與檢查碼有效的測試證號。`);
+  });
+  els.copyBtn.addEventListener("click",async() => {
+    if (!els.output.value) return;
+    try { await navigator.clipboard.writeText(els.output.value); }
+    catch (_) { els.output.select(); document.execCommand("copy"); }
+    setStatus(els.generateStatus,"已複製產生結果。" );
+  });
+  els.clearBtn.addEventListener("click",() => { els.output.value=""; els.copyBtn.disabled=true; setStatus(els.generateStatus,""); });
+  els.verifyBtn.addEventListener("click",() => {
+    const values=els.verifyInput.value.toUpperCase().split(/[\s,，;；]+/).map(v=>v.trim()).filter(Boolean);
+    if (!values.length) { els.verifyOutput.value=""; setStatus(els.verifyStatus,"請先輸入要驗證的證號。",true); return; }
+    let validCount=0;
+    els.verifyOutput.value=values.map(value => { const result=classify(value); if(result.valid) validCount+=1; return `${value}｜${result.type}｜${result.valid ? "有效" : "無效"}`; }).join("\n");
+    setStatus(els.verifyStatus,`共驗證 ${values.length} 筆，其中 ${validCount} 筆有效、${values.length-validCount} 筆無效。`,validCount !== values.length);
+  });
+  els.clearVerifyBtn.addEventListener("click",() => { els.verifyInput.value=""; els.verifyOutput.value=""; setStatus(els.verifyStatus,""); });
+
+  syncFields();
+  const selfTests=[generateNational(),generateNewArc(),generateOldArc()];
+  if (!validateNational(selfTests[0]) || !validateNewArc(selfTests[1]) || !validateOldArc(selfTests[2])) {
+    setStatus(els.generateStatus,"內建檢查碼自我測試失敗，請勿使用產生結果。",true);
+    els.generateBtn.disabled=true;
+  }
+})();
+</script>
+</body>
+</html>
